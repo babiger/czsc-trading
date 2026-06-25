@@ -42,7 +42,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: pip
+          # 注: 不开 cache: pip, 因为 v5.2 之后没 requirements.txt/pyproject.toml
+          #      (skill 通过 runtime.conf 声明依赖). v5.3.3 候选: 加 requirements.txt 加速 CI.
 
       - name: Install dependencies (pypi 官方源)
         run: |
