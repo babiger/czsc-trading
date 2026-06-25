@@ -1,0 +1,126 @@
+# GitHub Actions CI for czsc-trading
+# v5.3.1: 跑 pytest 防 v5.2 这种大重构引入回归
+#
+# 触发条件:
+#   - push 到 main / v5.3.* 分支
+#   - pull_request 到 main
+#   - 手动 workflow_dispatch
+#
+# 设计:
+#   - Python matrix: 3.10 + 3.11 (skill 声明 >=3.10, 实际用 3.11 验证)
+#   - 装 czsc 固定版本 (1.0.0rc8, 跟 runtime.conf 一致)
+#   - 跑 pytest 100 pass in ~2s (本地基线)
+#   - import 烟雾测试 (确保 czsc_cli 5 模块可导入)
+#   - e2e 烟雾测试 (--help 双入口)
+
+name: tests
+
+on:
+  push:
+    branches: [main, 'v5.3.*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: pytest (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies (pypi 官方源)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            "czsc==1.0.0rc8" \
+            akshare==1.18.64 \
+            plotly==6.8.0 \
+            pandas \
+            pytest
+
+      - name: Verify runtime dependencies
+        run: |
+          python -c "
+          import czsc, akshare, plotly, pandas, pytest
+          print(f'czsc {czsc.__version__}')
+          print(f'akshare {akshare.__version__}')
+          print(f'plotly {plotly.__version__}')
+          print(f'pandas {pandas.__version__}')
+          print(f'pytest {pytest.__version__}')
+          "
+
+      - name: Smoke test — 5 真拆模块可导入
+        run: |
+          python -c "
+          from czsc_cli import data, preset, signals, scanner, batch
+          # v5.2.3 真拆: 5 模块无 _EXPORTS / _imported / __getattr__
+          for name, m in [('data', data), ('preset', preset),
+                           ('signals', signals), ('scanner', scanner),
+                           ('batch', batch)]:
+              assert not hasattr(m, '_EXPORTS'), f'{name} 还有 _EXPORTS'
+              assert not hasattr(m, '_imported'), f'{name} 还有 _imported'
+              assert not hasattr(m, '__getattr__'), f'{name} 还有 __getattr__'
+              print(f'  ✅ {name} 真拆验证通过')
+          "
+
+      - name: Run pytest (6 文件 100 pass baseline)
+        run: |
+          python -m pytest tests/ --tb=short -ra
+
+      - name: E2E — 新入口 (python3 -m czsc_cli --help)
+        run: |
+          python -m czsc_cli --help 2>&1 | head -10
+          echo ""
+          python -m czsc_cli list 2>&1 | head -5
+
+      - name: E2E — 旧入口 (PYTHONPATH=scripts python3 scripts/czsc_signals.py --help)
+        run: |
+          PYTHONPATH=scripts:. python3 scripts/czsc_signals.py --help 2>&1 | head -10
+          echo ""
+          PYTHONPATH=scripts:. python3 scripts/czsc_signals.py list 2>&1 | head -5
+
+      - name: Verify czsc_signals.py is now a thin shim (392 行, 从 2959)
+        run: |
+          LINES=$(wc -l < scripts/czsc_signals.py)
+          if [ "$LINES" -gt 500 ]; then
+            echo "❌ scripts/czsc_signals.py 是 $LINES 行, 应该是 < 500 (v5.2.3 真拆后是 392)"
+            exit 1
+          fi
+          echo "✅ scripts/czsc_signals.py 是 $LINES 行 (v5.2.3 真拆约束)"
+
+      - name: Verify references/ chapter files (v5.2.2 拆分)
+        run: |
+          for f in data preset batch scanner signals changelog; do
+            if [ ! -f "references/$f.md" ]; then
+              echo "❌ references/$f.md 缺失 (v5.2.2 拆分)"
+              exit 1
+            fi
+          done
+          echo "✅ references/ 6 chapter 文件全存在"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "  v5.3 CI Summary"
+          echo "=========================================="
+          echo "Python: ${{ matrix.python-version }}"
+          echo "Trigger: ${{ github.event_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Result: ${{ job.status }}"
