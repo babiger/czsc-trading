@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# 测试
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.cache
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# 环境
+.env
+.env.local
+venv/
+.envrc
+
+# v5.2.3 备份快照 (本地保留, 不进 git)
+tmp/v523-rollback/
+
+# 用户临时文件
+tmp/pdf_helper.py
+tmp/pdf_*.py
+tmp/test_*.py
+
+# czsc-cli 缓存
+~/.cache/czsc/

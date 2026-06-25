@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <title>000001 缠论结构（日线）</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    :root[data-theme="light"] {
+      --bg: #FBF9F4; --text: #1A1A17; --hairline: #E8E2D4;
+      --accent: #1F3C6E; --up: #C03A2B; --down: #2E7D32;
+      --sma5: #C78A2E; --sma20: #2D6A8C; --fx: #8B7E5E;
+      --paper-tint: color-mix(in srgb, #FBF9F4 92%, #1A1A17 8%);
+      --muted: color-mix(in srgb, #1A1A17 55%, transparent);
+    }
+    :root[data-theme="dark"] {
+      --bg: #0E1116; --text: #EFEBE0; --hairline: #1F242E;
+      --accent: #A8B8E8; --up: #E94B3C; --down: #5BB85B;
+      --sma5: #E6A93B; --sma20: #6EB6E4; --fx: #8B8678;
+      --paper-tint: color-mix(in srgb, #0E1116 92%, #EFEBE0 8%);
+      --muted: color-mix(in srgb, #EFEBE0 55%, transparent);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+                 font-family: 'IBM Plex Sans', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+                 transition: background 0.32s ease, color 0.32s ease;
+                 font-feature-settings: 'cv05', 'cv11', 'ss01'; -webkit-font-smoothing: antialiased;
+                 letter-spacing: 0.005em; }
+    .mono { font-family: 'IBM Plex Mono', 'JetBrains Mono', 'SF Mono', Menlo, monospace; font-feature-settings: 'tnum' 1; }
+
+    /* —— 页头 —————————————————————————————————————————————— */
+    .masthead {
+      display: grid; grid-template-columns: auto 1fr auto; align-items: end; gap: 24px;
+      padding: 28px 40px 20px; border-bottom: 1px solid var(--hairline);
+      background: linear-gradient(180deg, var(--paper-tint) 0%, var(--bg) 100%);
+    }
+    .masthead__brand { display: flex; flex-direction: column; gap: 4px; }
+    .masthead__eyebrow {
+      font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted); font-weight: 500;
+    }
+    .masthead__symbol {
+      font-family: 'IBM Plex Mono', 'SF Mono', monospace; font-weight: 600;
+      font-size: 36px; line-height: 1; letter-spacing: -0.01em;
+    }
+    .masthead__title { font-size: 13px; color: var(--muted); line-height: 1.55; max-width: 56ch; padding-bottom: 4px; }
+    .masthead__right {
+      display: flex; align-items: center; gap: 14px; padding-bottom: 4px;
+    }
+    .masthead__status {
+      display: flex; align-items: center; gap: 8px;
+      font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted);
+      letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .masthead__pulse {
+      width: 6px; height: 6px; border-radius: 50%; background: var(--up);
+      box-shadow: 0 0 0 0 var(--up); animation: pulse 2.4s cubic-bezier(0.4,0,0.6,1) infinite;
+    }
+    @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--up) 70%, transparent); }
+                       70% { box-shadow: 0 0 0 8px transparent; }
+                       100% { box-shadow: 0 0 0 0 transparent; } }
+    .theme-toggle {
+      appearance: none; -webkit-appearance: none; cursor: pointer;
+      background: transparent; color: var(--muted);
+      border: 1px solid var(--hairline); border-radius: 999px;
+      padding: 6px 12px; font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+      letter-spacing: 0.16em; text-transform: uppercase;
+      display: inline-flex; align-items: center; gap: 6px;
+      transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+    }
+    .theme-toggle:hover { color: var(--text); border-color: var(--accent); }
+    .theme-toggle__icon {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, var(--text) 0%, var(--text) 48%, transparent 50%);
+    }
+
+    /* —— Tab 栏 ————————————————————————————————————————— */
+    .tabs { display: flex; gap: 0; padding: 0 40px; border-bottom: 1px solid var(--hairline);
+            background: var(--bg); position: relative; }
+    .tab {
+      appearance: none; -webkit-appearance: none; background: transparent; border: 0;
+      padding: 14px 20px; cursor: pointer; color: var(--muted);
+      font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+      position: relative; transition: color 0.2s ease;
+    }
+    .tab::after {
+      content: ''; position: absolute; left: 50%; right: 50%; bottom: -1px; height: 2px;
+      background: var(--accent); transition: left 0.28s ease, right 0.28s ease, opacity 0.2s; opacity: 0;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--text); font-weight: 600; }
+    .tab.active::after { left: 16px; right: 16px; opacity: 1; }
+    .tab__dot { display: inline-block; width: 4px; height: 4px; border-radius: 50%;
+                background: currentColor; margin-right: 8px; opacity: 0.4; vertical-align: middle; }
+    .tab.active .tab__dot { background: var(--accent); opacity: 1; }
+
+    /* —— 面板 —————————————————————————————————————————————— */
+    .freq-pane { padding: 16px 40px 32px; animation: fadein 0.32s ease-out both; }
+    .freq-pane[hidden] { display: none; }
+    @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .pane-meta {
+      display: flex; align-items: center; gap: 14px; padding: 6px 0 12px;
+      font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.06em;
+      color: var(--muted); text-transform: uppercase; flex-wrap: wrap;
+    }
+    .pane-meta__divider { width: 1px; height: 10px; background: var(--hairline); }
+    .pane-meta__legend {
+      display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+      padding: 4px 8px; border-radius: 3px; user-select: none;
+      transition: background 0.18s ease, color 0.18s ease, opacity 0.18s ease;
+    }
+    .pane-meta__legend:hover { background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text); }
+    .pane-meta__legend.legend--off { opacity: 0.35; text-decoration: line-through; }
+    .pane-meta__legend.legend--hover {
+      background: color-mix(in srgb, var(--text) 12%, transparent);
+      color: var(--text); font-weight: 500;
+    }
+    .pane-meta__swatch { width: 14px; height: 2px; flex-shrink: 0; }
+    .pane-meta__swatch--bi { background: var(--accent); height: 2px; }
+    .pane-meta__swatch--fx {
+      background: linear-gradient(90deg, var(--fx) 0 4px, transparent 4px 8px, var(--fx) 8px 12px);
+    }
+    .pane-meta__swatch--sma5  { background: var(--sma5); }
+    .pane-meta__swatch--sma20 { background: var(--sma20); }
+    .pane-meta__hint { color: var(--muted); font-size: 10px; opacity: 0.6; margin-left: auto; }
+
+    /* —— 图表容器 ———————————————————————————————————————— */
+    .chart-stack { position: relative; }
+    .row { width: 100%; position: relative; }
+    .row-main { height: 420px; }
+    .row-vol  { height: 130px; }
+    .row-macd { height: 170px; }
+    .row-sig  { height: 80px; }
+    .row-sig[hidden] { display: none; }
+    .row + .row { margin-top: 2px; }
+    .row__label {
+      position: absolute; left: 12px; top: 10px; z-index: 2;
+      font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.15em;
+      color: var(--muted); text-transform: uppercase; pointer-events: none;
+      padding: 2px 6px; background: color-mix(in srgb, var(--bg) 80%, transparent); border-radius: 2px;
+    }
+    .row__rowlabels {
+      position: absolute; left: 12px; top: 26px; bottom: 4px; z-index: 2;
+      display: flex; flex-direction: column; justify-content: space-evenly;
+      pointer-events: none;
+    }
+    .row__rowlabel {
+      font-family: 'IBM Plex Mono', 'SF Mono', Menlo, monospace; font-size: 10px;
+      color: var(--muted); letter-spacing: 0.04em; white-space: nowrap;
+      background: color-mix(in srgb, var(--bg) 90%, transparent);
+      padding: 1px 4px; border-radius: 2px;
+    }
+
+    /* —— K 线 Tooltip ———————————————————————————————————— */
+    .tooltip {
+      position: absolute; z-index: 30; min-width: 200px;
+      padding: 10px 14px; pointer-events: none; opacity: 0;
+      background: color-mix(in srgb, var(--bg) 96%, var(--text) 4%);
+      border: 1px solid var(--hairline); border-radius: 4px;
+      box-shadow: 0 8px 24px -8px color-mix(in srgb, var(--text) 12%, transparent),
+                  0 1px 0 0 color-mix(in srgb, var(--text) 6%, transparent);
+      transition: opacity 0.12s ease;
+      font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+      backdrop-filter: blur(8px);
+    }
+    .tooltip.visible { opacity: 1; }
+    .tooltip__time {
+      font-size: 10px; color: var(--muted); letter-spacing: 0.06em;
+      text-transform: uppercase; border-bottom: 1px solid var(--hairline);
+      padding-bottom: 6px; margin-bottom: 8px;
+    }
+    .tooltip__section {
+      font-size: 9px; color: var(--muted); letter-spacing: 0.12em;
+      text-transform: uppercase; margin-top: 8px; padding-top: 6px;
+      border-top: 1px solid color-mix(in srgb, var(--hairline) 60%, transparent);
+    }
+    .tooltip__grid { display: grid; grid-template-columns: auto 1fr; row-gap: 4px; column-gap: 16px; }
+    .tooltip__label { color: var(--muted); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; }
+    .tooltip__value { text-align: right; font-variant-numeric: tabular-nums; }
+    .tooltip__value--up   { color: var(--up); }
+    .tooltip__value--down { color: var(--down); }
+
+    /* —— 错误 / 页脚 ————————————————————————————————————— */
+    .lwc-error { padding: 24px 40px; color: var(--down); font-family: 'IBM Plex Mono', monospace; white-space: pre-wrap; }
+    .footer {
+      padding: 20px 40px 32px; border-top: 1px solid var(--hairline);
+      display: flex; justify-content: space-between; align-items: center;
+      font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.12em;
+      color: var(--muted); text-transform: uppercase;
+    }
+    .footer__crest { font-weight: 600; letter-spacing: 0.25em; }
+  </style>
+</head>
+<body>
+  <header class="masthead">
+    <div class="masthead__brand">
+      <div class="masthead__eyebrow">缠论 · Quant Almanac</div>
+      <div class="masthead__symbol mono">000001</div>
+    </div>
+    <div class="masthead__title">000001 缠论结构（日线）</div>
+    <div class="masthead__right">
+      <div class="masthead__status">
+        <span class="masthead__pulse"></span>
+        <span>LWC · LIVE</span>
+      </div>
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="切换主题">
+        <span class="theme-toggle__icon"></span>
+        <span id="theme-toggle-label">LIGHT</span>
+      </button>
+    </div>
+  </header>
+  <nav id="tabs" class="tabs"></nav>
+  <main id="root"></main>
+  <footer class="footer">
+    <div>czsc · lightweight_charts renderer</div>
+    <div class="footer__crest">缠 · ALMANAC</div>
+  </footer>
+
+  <script>
+  (function () {
+    function fail(msg) {
+      var root = document.getElementById("root");
+      var box = document.createElement("div");
+      box.className = "lwc-error";
+      box.textContent = msg;
+      root.appendChild(box);
+    }
+    if (typeof LightweightCharts === "undefined") {
+      fail("lightweight-charts JS 未加载。请检查网络或换 inline 模式。");
+      return;
+    }
+
+    var PAYLOAD = {"symbol": "000001", "title": "000001 缠论结构（日线）", "panes": [{"freq_label": "日线", "main": {"candles": [{"time": 1752019200, "open": 12.064, "high": 12.304, "low": 12.064, "close": 12.244}, {"time": 1752105600, "open": 12.224, "high": 12.734, "low": 12.194, "close": 12.584}, {"time": 1752192000, "open": 12.594, "high": 12.704, "low": 12.294, "close": 12.314}, {"time": 1752451200, "open": 12.274, "high": 12.574, "low": 12.264, "close": 12.384}, {"time": 1752537600, "open": 12.394, "high": 12.444, "low": 12.114, "close": 12.134}, {"time": 1752624000, "open": 12.134, "high": 12.164, "low": 11.904, "close": 12.044}, {"time": 1752710400, "open": 12.014, "high": 12.104, "low": 11.944, "close": 11.994}, {"time": 1752796800, "open": 12.024, "high": 12.154, "low": 12.004, "close": 12.104}, {"time": 1753056000, "open": 12.044, "high": 12.114, "low": 11.954, "close": 12.014}, {"time": 1753142400, "open": 12.004, "high": 12.004, "low": 11.724, "close": 11.894}, {"time": 1753228800, "open": 11.864, "high": 12.034, "low": 11.854, "close": 11.934}, {"time": 1753315200, "open": 11.934, "high": 11.934, "low": 11.734, "close": 11.754}, {"time": 1753401600, "open": 11.734, "high": 11.864, "low": 11.724, "close": 11.754}, {"time": 1753660800, "open": 11.754, "high": 11.934, "low": 11.724, "close": 11.864}, {"time": 1753747200, "open": 11.864, "high": 11.914, "low": 11.744, "close": 11.744}, {"time": 1753833600, "open": 11.754, "high": 12.044, "low": 11.744, "close": 11.894}, {"time": 1753920000, "open": 11.914, "high": 11.954, "low": 11.624, "close": 11.634}, {"time": 1754006400, "open": 11.644, "high": 11.734, "low": 11.554, "close": 11.684}, {"time": 1754265600, "open": 11.644, "high": 11.784, "low": 11.614, "close": 11.704}, {"time": 1754352000, "open": 11.704, "high": 11.904, "low": 11.684, "close": 11.874}, {"time": 1754438400, "open": 11.874, "high": 11.924, "low": 11.804, "close": 11.864}, {"time": 1754524800, "open": 11.844, "high": 11.934, "low": 11.794, "close": 11.874}, {"time": 1754611200, "open": 11.884, "high": 11.934, "low": 11.794, "close": 11.804}, {"time": 1754870400, "open": 11.804, "high": 11.824, "low": 11.674, "close": 11.704}, {"time": 1754956800, "open": 11.704, "high": 11.804, "low": 11.704, "close": 11.734}, {"time": 1755043200, "open": 11.774, "high": 11.804, "low": 11.634, "close": 11.664}, {"time": 1755129600, "open": 11.674, "high": 11.744, "low": 11.594, "close": 11.604}, {"time": 1755216000, "open": 11.634, "high": 11.634, "low": 11.344, "close": 11.484}, {"time": 1755475200, "open": 11.464, "high": 11.554, "low": 11.434, "close": 11.484}, {"time": 1755561600, "open": 11.504, "high": 11.524, "low": 11.424, "close": 11.464}, {"time": 1755648000, "open": 11.464, "high": 11.524, "low": 11.384, "close": 11.474}, {"time": 1755734400, "open": 11.454, "high": 11.594, "low": 11.434, "close": 11.554}, {"time": 1755820800, "open": 11.554, "high": 11.574, "low": 11.384, "close": 11.464}, {"time": 1756080000, "open": 11.524, "high": 11.934, "low": 11.504, "close": 11.854}, {"time": 1756166400, "open": 11.854, "high": 11.904, "low": 11.704, "close": 11.764}, {"time": 1756252800, "open": 11.724, "high": 11.764, "low": 11.454, "close": 11.464}, {"time": 1756339200, "open": 11.494, "high": 11.544, "low": 11.374, "close": 11.484}, {"time": 1756425600, "open": 11.454, "high": 11.624, "low": 11.434, "close": 11.454}, {"time": 1756684800, "open": 11.454, "high": 11.454, "low": 11.254, "close": 11.294}, {"time": 1756771200, "open": 11.254, "high": 11.394, "low": 11.244, "close": 11.384}, {"time": 1756857600, "open": 11.384, "high": 11.414, "low": 11.144, "close": 11.154}, {"time": 1756944000, "open": 11.164, "high": 11.174, "low": 11.004, "close": 11.144}, {"time": 1757030400, "open": 11.134, "high": 11.144, "low": 11.034, "close": 11.124}, {"time": 1757289600, "open": 11.114, "high": 11.184, "low": 11.074, "close": 11.104}, {"time": 1757376000, "open": 11.114, "high": 11.184, "low": 11.084, "close": 11.154}, {"time": 1757462400, "open": 11.144, "high": 11.194, "low": 11.114, "close": 11.174}, {"time": 1757548800, "open": 11.174, "high": 11.254, "low": 11.114, "close": 11.254}, {"time": 1757635200, "open": 11.234, "high": 11.284, "low": 11.104, "close": 11.124}, {"time": 1757894400, "open": 11.104, "high": 11.124, "low": 11.034, "close": 11.054}, {"time": 1757980800, "open": 11.064, "high": 11.114, "low": 11.014, "close": 11.044}, {"time": 1758067200, "open": 11.044, "high": 11.074, "low": 10.984, "close": 11.044}, {"time": 1758153600, "open": 11.054, "high": 11.064, "low": 10.784, "close": 10.814}, {"time": 1758240000, "open": 10.814, "high": 10.914, "low": 10.774, "close": 10.854}, {"time": 1758499200, "open": 10.844, "high": 10.874, "low": 10.774, "close": 10.784}, {"time": 1758585600, "open": 10.774, "high": 10.984, "low": 10.724, "close": 10.924}, {"time": 1758672000, "open": 10.914, "high": 11.024, "low": 10.834, "close": 10.864}, {"time": 1758758400, "open": 10.834, "high": 10.874, "low": 10.764, "close": 10.804}, {"time": 1758844800, "open": 10.794, "high": 10.844, "low": 10.724, "close": 10.804}, {"time": 1759104000, "open": 10.804, "high": 10.884, "low": 10.674, "close": 10.774}, {"time": 1759190400, "open": 10.774, "high": 10.774, "low": 10.694, "close": 10.744}, {"time": 1759968000, "open": 10.734, "high": 10.814, "low": 10.674, "close": 10.804}, {"time": 1760054400, "open": 10.774, "high": 10.894, "low": 10.764, "close": 10.834}, {"time": 1760313600, "open": 10.724, "high": 10.864, "low": 10.684, "close": 10.804}, {"time": 1760400000, "open": 10.794, "high": 11.004, "low": 10.764, "close": 10.974}, {"time": 1760486400, "open": 10.98, "high": 11.06, "low": 10.9, "close": 11.04}, {"time": 1760572800, "open": 11.02, "high": 11.19, "low": 11.0, "close": 11.18}, {"time": 1760659200, "open": 11.14, "high": 11.22, "low": 11.02, "close": 11.04}, {"time": 1760918400, "open": 11.05, "high": 11.09, "low": 10.91, "close": 11.06}, {"time": 1761004800, "open": 11.04, "high": 11.11, "low": 11.03, "close": 11.07}, {"time": 1761091200, "open": 11.04, "high": 11.18, "low": 11.04, "close": 11.16}, {"time": 1761177600, "open": 11.16, "high": 11.35, "low": 11.14, "close": 11.27}, {"time": 1761264000, "open": 11.24, "high": 11.32, "low": 11.19, "close": 11.2}, {"time": 1761523200, "open": 11.18, "high": 11.25, "low": 11.08, "close": 11.16}, {"time": 1761609600, "open": 11.17, "high": 11.22, "low": 11.06, "close": 11.11}, {"time": 1761696000, "open": 11.1, "high": 11.1, "low": 11.0, "close": 11.03}, {"time": 1761782400, "open": 11.02, "high": 11.11, "low": 11.0, "close": 11.02}, {"time": 1761868800, "open": 11.02, "high": 11.04, "low": 10.94, "close": 10.96}, {"time": 1762128000, "open": 10.98, "high": 11.08, "low": 10.94, "close": 11.07}, {"time": 1762214400, "open": 11.06, "high": 11.28, "low": 11.04, "close": 11.23}, {"time": 1762300800, "open": 11.23, "high": 11.24, "low": 11.14, "close": 11.16}, {"time": 1762387200, "open": 11.14, "high": 11.22, "low": 11.11, "close": 11.15}, {"time": 1762473600, "open": 11.16, "high": 11.22, "low": 11.14, "close": 11.19}, {"time": 1762732800, "open": 11.16, "high": 11.28, "low": 11.09, "close": 11.27}, {"time": 1762819200, "open": 11.26, "high": 11.33, "low": 11.21, "close": 11.31}, {"time": 1762905600, "open": 11.34, "high": 11.43, "low": 11.29, "close": 11.32}, {"time": 1762992000, "open": 11.32, "high": 11.36, "low": 11.21, "close": 11.34}, {"time": 1763078400, "open": 11.31, "high": 11.48, "low": 11.3, "close": 11.39}, {"time": 1763337600, "open": 11.39, "high": 11.39, "low": 11.26, "close": 11.31}, {"time": 1763424000, "open": 11.29, "high": 11.33, "low": 11.21, "close": 11.23}, {"time": 1763510400, "open": 11.22, "high": 11.47, "low": 11.21, "close": 11.44}, {"time": 1763596800, "open": 11.43, "high": 11.63, "low": 11.38, "close": 11.49}, {"time": 1763683200, "open": 11.44, "high": 11.52, "low": 11.3, "close": 11.33}, {"time": 1763942400, "open": 11.34, "high": 11.37, "low": 11.24, "close": 11.24}, {"time": 1764028800, "open": 11.25, "high": 11.44, "low": 11.22, "close": 11.44}, {"time": 1764115200, "open": 11.45, "high": 11.49, "low": 11.29, "close": 11.33}, {"time": 1764201600, "open": 11.3, "high": 11.35, "low": 11.22, "close": 11.35}, {"time": 1764288000, "open": 11.31, "high": 11.32, "low": 11.22, "close": 11.25}, {"time": 1764547200, "open": 11.24, "high": 11.34, "low": 11.17, "close": 11.33}, {"time": 1764633600, "open": 11.32, "high": 11.37, "low": 11.23, "close": 11.28}, {"time": 1764720000, "open": 11.28, "high": 11.34, "low": 11.18, "close": 11.19}, {"time": 1764806400, "open": 11.19, "high": 11.22, "low": 11.1, "close": 11.13}, {"time": 1764892800, "open": 11.13, "high": 11.18, "low": 11.04, "close": 11.17}, {"time": 1765152000, "open": 11.13, "high": 11.24, "low": 11.12, "close": 11.16}, {"time": 1765238400, "open": 11.16, "high": 11.18, "low": 11.07, "close": 11.07}, {"time": 1765324800, "open": 11.08, "high": 11.1, "low": 10.93, "close": 10.97}, {"time": 1765411200, "open": 10.99, "high": 11.03, "low": 10.94, "close": 11.01}, {"time": 1765497600, "open": 11.01, "high": 11.07, "low": 10.94, "close": 10.99}, {"time": 1765756800, "open": 10.98, "high": 11.18, "low": 10.97, "close": 11.15}, {"time": 1765843200, "open": 11.13, "high": 11.19, "low": 11.08, "close": 11.12}, {"time": 1765929600, "open": 11.11, "high": 11.22, "low": 11.06, "close": 11.17}, {"time": 1766016000, "open": 11.15, "high": 11.29, "low": 11.12, "close": 11.28}, {"time": 1766102400, "open": 11.27, "high": 11.29, "low": 11.22, "close": 11.26}, {"time": 1766361600, "open": 11.25, "high": 11.25, "low": 11.15, "close": 11.16}, {"time": 1766448000, "open": 11.16, "high": 11.24, "low": 11.14, "close": 11.2}, {"time": 1766534400, "open": 11.19, "high": 11.22, "low": 11.13, "close": 11.18}, {"time": 1766620800, "open": 11.18, "high": 11.26, "low": 11.16, "close": 11.2}, {"time": 1766707200, "open": 11.2, "high": 11.23, "low": 11.17, "close": 11.18}, {"time": 1766966400, "open": 11.18, "high": 11.26, "low": 11.14, "close": 11.2}, {"time": 1767052800, "open": 11.17, "high": 11.2, "low": 11.09, "close": 11.12}, {"time": 1767139200, "open": 11.12, "high": 11.13, "low": 11.04, "close": 11.05}, {"time": 1767571200, "open": 11.06, "high": 11.15, "low": 11.05, "close": 11.14}, {"time": 1767657600, "open": 11.14, "high": 11.32, "low": 11.12, "close": 11.31}, {"time": 1767744000, "open": 11.3, "high": 11.46, "low": 11.26, "close": 11.28}, {"time": 1767830400, "open": 11.28, "high": 11.29, "low": 11.13, "close": 11.15}, {"time": 1767916800, "open": 11.17, "high": 11.17, "low": 11.08, "close": 11.1}, {"time": 1768176000, "open": 11.09, "high": 11.13, "low": 11.06, "close": 11.12}, {"time": 1768262400, "open": 11.12, "high": 11.18, "low": 11.08, "close": 11.11}, {"time": 1768348800, "open": 11.11, "high": 11.11, "low": 10.99, "close": 11.0}, {"time": 1768435200, "open": 10.97, "high": 11.01, "low": 10.94, "close": 10.95}, {"time": 1768521600, "open": 10.98, "high": 10.98, "low": 10.8, "close": 10.83}, {"time": 1768780800, "open": 10.79, "high": 10.85, "low": 10.75, "close": 10.76}, {"time": 1768867200, "open": 10.76, "high": 10.84, "low": 10.75, "close": 10.8}, {"time": 1768953600, "open": 10.79, "high": 10.82, "low": 10.7, "close": 10.71}, {"time": 1769040000, "open": 10.71, "high": 10.79, "low": 10.69, "close": 10.71}, {"time": 1769126400, "open": 10.71, "high": 10.73, "low": 10.62, "close": 10.63}, {"time": 1769385600, "open": 10.62, "high": 10.7, "low": 10.56, "close": 10.6}, {"time": 1769472000, "open": 10.6, "high": 10.67, "low": 10.57, "close": 10.58}, {"time": 1769558400, "open": 10.58, "high": 10.63, "low": 10.46, "close": 10.48}, {"time": 1769644800, "open": 10.48, "high": 10.62, "low": 10.3, "close": 10.6}, {"time": 1769731200, "open": 10.58, "high": 10.67, "low": 10.47, "close": 10.47}, {"time": 1769990400, "open": 10.46, "high": 10.67, "low": 10.44, "close": 10.5}, {"time": 1770076800, "open": 10.53, "high": 10.54, "low": 10.41, "close": 10.48}, {"time": 1770163200, "open": 10.49, "high": 10.62, "low": 10.48, "close": 10.61}, {"time": 1770249600, "open": 10.62, "high": 10.75, "low": 10.6, "close": 10.73}, {"time": 1770336000, "open": 10.72, "high": 10.78, "low": 10.63, "close": 10.69}, {"time": 1770595200, "open": 10.69, "high": 10.75, "low": 10.65, "close": 10.71}, {"time": 1770681600, "open": 10.71, "high": 10.74, "low": 10.66, "close": 10.7}, {"time": 1770768000, "open": 10.7, "high": 10.73, "low": 10.66, "close": 10.71}, {"time": 1770854400, "open": 10.71, "high": 10.72, "low": 10.57, "close": 10.6}, {"time": 1770940800, "open": 10.6, "high": 10.63, "low": 10.54, "close": 10.55}, {"time": 1771891200, "open": 10.57, "high": 10.59, "low": 10.52, "close": 10.55}, {"time": 1771977600, "open": 10.55, "high": 10.59, "low": 10.42, "close": 10.5}, {"time": 1772064000, "open": 10.5, "high": 10.55, "low": 10.44, "close": 10.51}, {"time": 1772150400, "open": 10.5, "high": 10.56, "low": 10.48, "close": 10.54}, {"time": 1772409600, "open": 10.49, "high": 10.53, "low": 10.41, "close": 10.49}, {"time": 1772496000, "open": 10.49, "high": 10.59, "low": 10.44, "close": 10.52}, {"time": 1772582400, "open": 10.48, "high": 10.48, "low": 10.31, "close": 10.35}, {"time": 1772668800, "open": 10.36, "high": 10.48, "low": 10.34, "close": 10.45}, {"time": 1772755200, "open": 10.42, "high": 10.48, "low": 10.41, "close": 10.46}, {"time": 1773014400, "open": 10.43, "high": 10.46, "low": 10.38, "close": 10.4}, {"time": 1773100800, "open": 10.41, "high": 10.45, "low": 10.37, "close": 10.45}, {"time": 1773187200, "open": 10.43, "high": 10.54, "low": 10.41, "close": 10.53}, {"time": 1773273600, "open": 10.51, "high": 10.6, "low": 10.49, "close": 10.58}, {"time": 1773360000, "open": 10.57, "high": 10.64, "low": 10.51, "close": 10.57}, {"time": 1773619200, "open": 10.57, "high": 10.61, "low": 10.52, "close": 10.56}, {"time": 1773705600, "open": 10.55, "high": 10.71, "low": 10.54, "close": 10.67}, {"time": 1773792000, "open": 10.68, "high": 10.68, "low": 10.55, "close": 10.6}, {"time": 1773878400, "open": 10.56, "high": 10.61, "low": 10.5, "close": 10.52}, {"time": 1773964800, "open": 10.51, "high": 10.58, "low": 10.4, "close": 10.41}, {"time": 1774224000, "open": 10.32, "high": 10.32, "low": 10.07, "close": 10.09}, {"time": 1774310400, "open": 10.16, "high": 10.53, "low": 10.16, "close": 10.52}, {"time": 1774396800, "open": 10.53, "high": 10.59, "low": 10.43, "close": 10.58}, {"time": 1774483200, "open": 10.55, "high": 10.69, "low": 10.54, "close": 10.58}, {"time": 1774569600, "open": 10.55, "high": 10.69, "low": 10.47, "close": 10.66}, {"time": 1774828800, "open": 10.62, "high": 10.69, "low": 10.58, "close": 10.63}, {"time": 1774915200, "open": 10.64, "high": 10.82, "low": 10.63, "close": 10.72}, {"time": 1775001600, "open": 10.73, "high": 10.87, "low": 10.72, "close": 10.79}, {"time": 1775088000, "open": 10.79, "high": 10.96, "low": 10.77, "close": 10.91}, {"time": 1775174400, "open": 10.92, "high": 10.92, "low": 10.73, "close": 10.76}, {"time": 1775520000, "open": 10.76, "high": 10.78, "low": 10.61, "close": 10.67}, {"time": 1775606400, "open": 10.75, "high": 10.86, "low": 10.69, "close": 10.86}, {"time": 1775692800, "open": 10.81, "high": 10.86, "low": 10.7, "close": 10.74}, {"time": 1775779200, "open": 10.74, "high": 10.77, "low": 10.71, "close": 10.73}, {"time": 1776038400, "open": 10.69, "high": 10.73, "low": 10.67, "close": 10.71}, {"time": 1776124800, "open": 10.71, "high": 10.81, "low": 10.71, "close": 10.81}, {"time": 1776211200, "open": 10.8, "high": 10.86, "low": 10.79, "close": 10.85}, {"time": 1776297600, "open": 10.84, "high": 10.87, "low": 10.71, "close": 10.73}, {"time": 1776384000, "open": 10.73, "high": 10.75, "low": 10.63, "close": 10.65}, {"time": 1776643200, "open": 10.65, "high": 10.71, "low": 10.6, "close": 10.7}, {"time": 1776729600, "open": 10.68, "high": 10.8, "low": 10.67, "close": 10.72}, {"time": 1776816000, "open": 10.72, "high": 10.73, "low": 10.59, "close": 10.62}, {"time": 1776902400, "open": 10.62, "high": 10.67, "low": 10.57, "close": 10.64}, {"time": 1776988800, "open": 10.62, "high": 10.67, "low": 10.56, "close": 10.64}, {"time": 1777248000, "open": 10.97, "high": 11.21, "low": 10.93, "close": 11.02}, {"time": 1777334400, "open": 11.0, "high": 11.1, "low": 10.96, "close": 11.1}, {"time": 1777420800, "open": 11.07, "high": 11.18, "low": 11.03, "close": 11.16}, {"time": 1777507200, "open": 11.14, "high": 11.24, "low": 11.1, "close": 11.13}, {"time": 1778025600, "open": 11.14, "high": 11.14, "low": 10.94, "close": 11.0}, {"time": 1778112000, "open": 11.01, "high": 11.03, "low": 10.94, "close": 11.01}, {"time": 1778198400, "open": 10.98, "high": 11.06, "low": 10.94, "close": 10.94}, {"time": 1778457600, "open": 10.93, "high": 10.95, "low": 10.8, "close": 10.92}, {"time": 1778544000, "open": 10.92, "high": 11.0, "low": 10.85, "close": 10.89}, {"time": 1778630400, "open": 10.89, "high": 10.92, "low": 10.75, "close": 10.78}, {"time": 1778716800, "open": 10.78, "high": 10.79, "low": 10.69, "close": 10.69}, {"time": 1778803200, "open": 10.69, "high": 10.75, "low": 10.6, "close": 10.63}, {"time": 1779062400, "open": 10.6, "high": 10.61, "low": 10.46, "close": 10.5}, {"time": 1779148800, "open": 10.47, "high": 10.56, "low": 10.47, "close": 10.5}, {"time": 1779235200, "open": 10.5, "high": 10.52, "low": 10.4, "close": 10.41}, {"time": 1779321600, "open": 10.42, "high": 10.44, "low": 10.33, "close": 10.34}, {"time": 1779408000, "open": 10.34, "high": 10.37, "low": 10.29, "close": 10.32}, {"time": 1779667200, "open": 10.32, "high": 10.4, "low": 10.28, "close": 10.32}, {"time": 1779753600, "open": 10.35, "high": 10.47, "low": 10.3, "close": 10.43}, {"time": 1779840000, "open": 10.4, "high": 10.49, "low": 10.36, "close": 10.4}, {"time": 1779926400, "open": 10.4, "high": 10.43, "low": 10.27, "close": 10.3}, {"time": 1780012800, "open": 10.29, "high": 10.57, "low": 10.26, "close": 10.57}, {"time": 1780272000, "open": 10.54, "high": 10.63, "low": 10.45, "close": 10.63}, {"time": 1780358400, "open": 10.62, "high": 10.74, "low": 10.58, "close": 10.72}, {"time": 1780444800, "open": 10.67, "high": 10.7, "low": 10.56, "close": 10.63}, {"time": 1780531200, "open": 10.55, "high": 10.61, "low": 10.41, "close": 10.46}, {"time": 1780617600, "open": 10.47, "high": 10.67, "low": 10.47, "close": 10.62}, {"time": 1780876800, "open": 10.61, "high": 10.74, "low": 10.6, "close": 10.67}, {"time": 1780963200, "open": 10.65, "high": 10.83, "low": 10.6, "close": 10.77}, {"time": 1781049600, "open": 10.71, "high": 10.99, "low": 10.71, "close": 10.96}, {"time": 1781136000, "open": 10.96, "high": 11.03, "low": 10.89, "close": 10.94}, {"time": 1781222400, "open": 11.0, "high": 11.25, "low": 10.88, "close": 11.24}, {"time": 1781481600, "open": 11.21, "high": 11.21, "low": 10.98, "close": 11.06}, {"time": 1781568000, "open": 11.05, "high": 11.12, "low": 10.91, "close": 10.94}, {"time": 1781654400, "open": 10.97, "high": 10.99, "low": 10.75, "close": 10.78}, {"time": 1781740800, "open": 10.74, "high": 10.77, "low": 10.52, "close": 10.52}, {"time": 1782086400, "open": 10.52, "high": 10.67, "low": 10.42, "close": 10.65}, {"time": 1782172800, "open": 10.65, "high": 10.91, "low": 10.63, "close": 10.71}], "sma5": [{"time": 1752019200, "value": null}, {"time": 1752105600, "value": null}, {"time": 1752192000, "value": null}, {"time": 1752451200, "value": null}, {"time": 1752537600, "value": 12.331999999999999}, {"time": 1752624000, "value": 12.291999999999998}, {"time": 1752710400, "value": 12.173999999999998}, {"time": 1752796800, "value": 12.131999999999998}, {"time": 1753056000, "value": 12.057999999999998}, {"time": 1753142400, "value": 12.009999999999998}, {"time": 1753228800, "value": 11.987999999999998}, {"time": 1753315200, "value": 11.939999999999998}, {"time": 1753401600, "value": 11.869999999999997}, {"time": 1753660800, "value": 11.839999999999998}, {"time": 1753747200, "value": 11.809999999999999}, {"time": 1753833600, "value": 11.801999999999998}, {"time": 1753920000, "value": 11.777999999999999}, {"time": 1754006400, "value": 11.764}, {"time": 1754265600, "value": 11.732}, {"time": 1754352000, "value": 11.758}, {"time": 1754438400, "value": 11.751999999999999}, {"time": 1754524800, "value": 11.8}, {"time": 1754611200, "value": 11.824000000000002}, {"time": 1754870400, "value": 11.824000000000002}, {"time": 1754956800, "value": 11.796000000000001}, {"time": 1755043200, "value": 11.756}, {"time": 1755129600, "value": 11.702}, {"time": 1755216000, "value": 11.638}, {"time": 1755475200, "value": 11.594}, {"time": 1755561600, "value": 11.540000000000001}, {"time": 1755648000, "value": 11.502}, {"time": 1755734400, "value": 11.492}, {"time": 1755820800, "value": 11.488000000000003}, {"time": 1756080000, "value": 11.562000000000001}, {"time": 1756166400, "value": 11.622000000000002}, {"time": 1756252800, "value": 11.620000000000001}, {"time": 1756339200, "value": 11.606000000000002}, {"time": 1756425600, "value": 11.604000000000003}, {"time": 1756684800, "value": 11.492}, {"time": 1756771200, "value": 11.416000000000002}, {"time": 1756857600, "value": 11.354000000000003}, {"time": 1756944000, "value": 11.286000000000001}, {"time": 1757030400, "value": 11.220000000000002}, {"time": 1757289600, "value": 11.182000000000002}, {"time": 1757376000, "value": 11.136000000000001}, {"time": 1757462400, "value": 11.14}, {"time": 1757548800, "value": 11.162}, {"time": 1757635200, "value": 11.162}, {"time": 1757894400, "value": 11.152000000000001}, {"time": 1757980800, "value": 11.13}, {"time": 1758067200, "value": 11.104000000000003}, {"time": 1758153600, "value": 11.016000000000002}, {"time": 1758240000, "value": 10.962000000000002}, {"time": 1758499200, "value": 10.908000000000001}, {"time": 1758585600, "value": 10.884}, {"time": 1758672000, "value": 10.848}, {"time": 1758758400, "value": 10.846}, {"time": 1758844800, "value": 10.836000000000002}, {"time": 1759104000, "value": 10.834}, {"time": 1759190400, "value": 10.798}, {"time": 1759968000, "value": 10.786}, {"time": 1760054400, "value": 10.792}, {"time": 1760313600, "value": 10.792}, {"time": 1760400000, "value": 10.832}, {"time": 1760486400, "value": 10.891200000000001}, {"time": 1760572800, "value": 10.9664}, {"time": 1760659200, "value": 11.0076}, {"time": 1760918400, "value": 11.0588}, {"time": 1761004800, "value": 11.078}, {"time": 1761091200, "value": 11.102}, {"time": 1761177600, "value": 11.120000000000001}, {"time": 1761264000, "value": 11.152000000000001}, {"time": 1761523200, "value": 11.172}, {"time": 1761609600, "value": 11.180000000000001}, {"time": 1761696000, "value": 11.154}, {"time": 1761782400, "value": 11.104000000000001}, {"time": 1761868800, "value": 11.056000000000001}, {"time": 1762128000, "value": 11.038}, {"time": 1762214400, "value": 11.062000000000001}, {"time": 1762300800, "value": 11.088000000000001}, {"time": 1762387200, "value": 11.114}, {"time": 1762473600, "value": 11.16}, {"time": 1762732800, "value": 11.2}, {"time": 1762819200, "value": 11.216}, {"time": 1762905600, "value": 11.248}, {"time": 1762992000, "value": 11.285999999999998}, {"time": 1763078400, "value": 11.325999999999999}, {"time": 1763337600, "value": 11.334}, {"time": 1763424000, "value": 11.318}, {"time": 1763510400, "value": 11.341999999999999}, {"time": 1763596800, "value": 11.371999999999998}, {"time": 1763683200, "value": 11.359999999999998}, {"time": 1763942400, "value": 11.345999999999998}, {"time": 1764028800, "value": 11.387999999999998}, {"time": 1764115200, "value": 11.365999999999998}, {"time": 1764201600, "value": 11.337999999999997}, {"time": 1764288000, "value": 11.322}, {"time": 1764547200, "value": 11.339999999999998}, {"time": 1764633600, "value": 11.307999999999998}, {"time": 1764720000, "value": 11.279999999999998}, {"time": 1764806400, "value": 11.235999999999999}, {"time": 1764892800, "value": 11.219999999999999}, {"time": 1765152000, "value": 11.185999999999998}, {"time": 1765238400, "value": 11.143999999999998}, {"time": 1765324800, "value": 11.099999999999998}, {"time": 1765411200, "value": 11.075999999999999}, {"time": 1765497600, "value": 11.04}, {"time": 1765756800, "value": 11.038}, {"time": 1765843200, "value": 11.047999999999998}, {"time": 1765929600, "value": 11.088}, {"time": 1766016000, "value": 11.142}, {"time": 1766102400, "value": 11.195999999999998}, {"time": 1766361600, "value": 11.197999999999997}, {"time": 1766448000, "value": 11.213999999999997}, {"time": 1766534400, "value": 11.215999999999998}, {"time": 1766620800, "value": 11.199999999999998}, {"time": 1766707200, "value": 11.183999999999997}, {"time": 1766966400, "value": 11.191999999999997}, {"time": 1767052800, "value": 11.175999999999998}, {"time": 1767139200, "value": 11.149999999999997}, {"time": 1767571200, "value": 11.137999999999996}, {"time": 1767657600, "value": 11.163999999999998}, {"time": 1767744000, "value": 11.179999999999996}, {"time": 1767830400, "value": 11.185999999999996}, {"time": 1767916800, "value": 11.195999999999996}, {"time": 1768176000, "value": 11.191999999999997}, {"time": 1768262400, "value": 11.151999999999996}, {"time": 1768348800, "value": 11.095999999999995}, {"time": 1768435200, "value": 11.055999999999994}, {"time": 1768521600, "value": 11.001999999999995}, {"time": 1768780800, "value": 10.929999999999996}, {"time": 1768867200, "value": 10.867999999999995}, {"time": 1768953600, "value": 10.809999999999995}, {"time": 1769040000, "value": 10.761999999999995}, {"time": 1769126400, "value": 10.721999999999994}, {"time": 1769385600, "value": 10.689999999999994}, {"time": 1769472000, "value": 10.645999999999995}, {"time": 1769558400, "value": 10.599999999999994}, {"time": 1769644800, "value": 10.577999999999994}, {"time": 1769731200, "value": 10.545999999999996}, {"time": 1769990400, "value": 10.525999999999994}, {"time": 1770076800, "value": 10.505999999999995}, {"time": 1770163200, "value": 10.531999999999993}, {"time": 1770249600, "value": 10.557999999999995}, {"time": 1770336000, "value": 10.601999999999993}, {"time": 1770595200, "value": 10.643999999999995}, {"time": 1770681600, "value": 10.687999999999994}, {"time": 1770768000, "value": 10.707999999999995}, {"time": 1770854400, "value": 10.681999999999993}, {"time": 1770940800, "value": 10.653999999999993}, {"time": 1771891200, "value": 10.621999999999995}, {"time": 1771977600, "value": 10.581999999999994}, {"time": 1772064000, "value": 10.541999999999993}, {"time": 1772150400, "value": 10.529999999999992}, {"time": 1772409600, "value": 10.517999999999992}, {"time": 1772496000, "value": 10.511999999999992}, {"time": 1772582400, "value": 10.481999999999992}, {"time": 1772668800, "value": 10.469999999999992}, {"time": 1772755200, "value": 10.453999999999992}, {"time": 1773014400, "value": 10.435999999999993}, {"time": 1773100800, "value": 10.421999999999993}, {"time": 1773187200, "value": 10.457999999999993}, {"time": 1773273600, "value": 10.483999999999993}, {"time": 1773360000, "value": 10.505999999999993}, {"time": 1773619200, "value": 10.537999999999993}, {"time": 1773705600, "value": 10.581999999999994}, {"time": 1773792000, "value": 10.595999999999993}, {"time": 1773878400, "value": 10.583999999999993}, {"time": 1773964800, "value": 10.551999999999992}, {"time": 1774224000, "value": 10.457999999999993}, {"time": 1774310400, "value": 10.427999999999994}, {"time": 1774396800, "value": 10.423999999999992}, {"time": 1774483200, "value": 10.435999999999993}, {"time": 1774569600, "value": 10.485999999999994}, {"time": 1774828800, "value": 10.593999999999992}, {"time": 1774915200, "value": 10.633999999999993}, {"time": 1775001600, "value": 10.675999999999993}, {"time": 1775088000, "value": 10.741999999999994}, {"time": 1775174400, "value": 10.761999999999993}, {"time": 1775520000, "value": 10.769999999999992}, {"time": 1775606400, "value": 10.797999999999993}, {"time": 1775692800, "value": 10.787999999999993}, {"time": 1775779200, "value": 10.751999999999994}, {"time": 1776038400, "value": 10.741999999999994}, {"time": 1776124800, "value": 10.769999999999994}, {"time": 1776211200, "value": 10.767999999999995}, {"time": 1776297600, "value": 10.765999999999995}, {"time": 1776384000, "value": 10.749999999999996}, {"time": 1776643200, "value": 10.747999999999996}, {"time": 1776729600, "value": 10.729999999999995}, {"time": 1776816000, "value": 10.683999999999994}, {"time": 1776902400, "value": 10.665999999999993}, {"time": 1776988800, "value": 10.663999999999994}, {"time": 1777248000, "value": 10.727999999999994}, {"time": 1777334400, "value": 10.803999999999993}, {"time": 1777420800, "value": 10.911999999999994}, {"time": 1777507200, "value": 11.009999999999994}, {"time": 1778025600, "value": 11.081999999999994}, {"time": 1778112000, "value": 11.079999999999995}, {"time": 1778198400, "value": 11.047999999999993}, {"time": 1778457600, "value": 10.999999999999993}, {"time": 1778544000, "value": 10.951999999999993}, {"time": 1778630400, "value": 10.907999999999992}, {"time": 1778716800, "value": 10.843999999999992}, {"time": 1778803200, "value": 10.781999999999993}, {"time": 1779062400, "value": 10.697999999999993}, {"time": 1779148800, "value": 10.619999999999994}, {"time": 1779235200, "value": 10.545999999999994}, {"time": 1779321600, "value": 10.475999999999994}, {"time": 1779408000, "value": 10.413999999999993}, {"time": 1779667200, "value": 10.377999999999993}, {"time": 1779753600, "value": 10.363999999999994}, {"time": 1779840000, "value": 10.361999999999993}, {"time": 1779926400, "value": 10.353999999999994}, {"time": 1780012800, "value": 10.403999999999993}, {"time": 1780272000, "value": 10.465999999999994}, {"time": 1780358400, "value": 10.523999999999994}, {"time": 1780444800, "value": 10.569999999999993}, {"time": 1780531200, "value": 10.601999999999993}, {"time": 1780617600, "value": 10.611999999999991}, {"time": 1780876800, "value": 10.619999999999992}, {"time": 1780963200, "value": 10.629999999999992}, {"time": 1781049600, "value": 10.69599999999999}, {"time": 1781136000, "value": 10.791999999999991}, {"time": 1781222400, "value": 10.915999999999991}, {"time": 1781481600, "value": 10.993999999999991}, {"time": 1781568000, "value": 11.027999999999992}, {"time": 1781654400, "value": 10.991999999999992}, {"time": 1781740800, "value": 10.90799999999999}, {"time": 1782086400, "value": 10.789999999999992}, {"time": 1782172800, "value": 10.719999999999992}], "sma20": [{"time": 1752019200, "value": null}, {"time": 1752105600, "value": null}, {"time": 1752192000, "value": null}, {"time": 1752451200, "value": null}, {"time": 1752537600, "value": null}, {"time": 1752624000, "value": null}, {"time": 1752710400, "value": null}, {"time": 1752796800, "value": null}, {"time": 1753056000, "value": null}, {"time": 1753142400, "value": null}, {"time": 1753228800, "value": null}, {"time": 1753315200, "value": null}, {"time": 1753401600, "value": null}, {"time": 1753660800, "value": null}, {"time": 1753747200, "value": null}, {"time": 1753833600, "value": null}, {"time": 1753920000, "value": null}, {"time": 1754006400, "value": null}, {"time": 1754265600, "value": null}, {"time": 1754352000, "value": 11.977500000000001}, {"time": 1754438400, "value": 11.9585}, {"time": 1754524800, "value": 11.923}, {"time": 1754611200, "value": 11.8975}, {"time": 1754870400, "value": 11.8635}, {"time": 1754956800, "value": 11.8435}, {"time": 1755043200, "value": 11.8245}, {"time": 1755129600, "value": 11.805000000000001}, {"time": 1755216000, "value": 11.774000000000001}, {"time": 1755475200, "value": 11.7475}, {"time": 1755561600, "value": 11.726}, {"time": 1755648000, "value": 11.703}, {"time": 1755734400, "value": 11.693000000000001}, {"time": 1755820800, "value": 11.678500000000001}, {"time": 1756080000, "value": 11.678}, {"time": 1756166400, "value": 11.679000000000002}, {"time": 1756252800, "value": 11.657500000000002}, {"time": 1756339200, "value": 11.650000000000002}, {"time": 1756425600, "value": 11.638500000000002}, {"time": 1756684800, "value": 11.618000000000002}, {"time": 1756771200, "value": 11.593500000000002}, {"time": 1756857600, "value": 11.558000000000002}, {"time": 1756944000, "value": 11.521500000000001}, {"time": 1757030400, "value": 11.4875}, {"time": 1757289600, "value": 11.457500000000001}, {"time": 1757376000, "value": 11.428500000000001}, {"time": 1757462400, "value": 11.404}, {"time": 1757548800, "value": 11.386500000000002}, {"time": 1757635200, "value": 11.368500000000001}, {"time": 1757894400, "value": 11.347}, {"time": 1757980800, "value": 11.326}, {"time": 1758067200, "value": 11.3045}, {"time": 1758153600, "value": 11.2675}, {"time": 1758240000, "value": 11.236999999999998}, {"time": 1758499200, "value": 11.183499999999999}, {"time": 1758585600, "value": 11.141499999999999}, {"time": 1758672000, "value": 11.1115}, {"time": 1758758400, "value": 11.077499999999999}, {"time": 1758844800, "value": 11.044999999999998}, {"time": 1759104000, "value": 11.018999999999998}, {"time": 1759190400, "value": 10.986999999999998}, {"time": 1759968000, "value": 10.969499999999998}, {"time": 1760054400, "value": 10.953999999999997}, {"time": 1760313600, "value": 10.937999999999999}, {"time": 1760400000, "value": 10.931499999999998}, {"time": 1760486400, "value": 10.925799999999999}, {"time": 1760572800, "value": 10.926099999999998}, {"time": 1760659200, "value": 10.915399999999998}, {"time": 1760918400, "value": 10.912199999999999}, {"time": 1761004800, "value": 10.912999999999998}, {"time": 1761091200, "value": 10.9188}, {"time": 1761177600, "value": 10.9301}, {"time": 1761264000, "value": 10.949399999999999}, {"time": 1761523200, "value": 10.964699999999999}, {"time": 1761609600, "value": 10.980999999999998}, {"time": 1761696000, "value": 10.986299999999998}, {"time": 1761782400, "value": 10.9941}, {"time": 1761868800, "value": 11.0019}, {"time": 1762128000, "value": 11.015199999999998}, {"time": 1762214400, "value": 11.037999999999998}, {"time": 1762300800, "value": 11.058799999999998}, {"time": 1762387200, "value": 11.076099999999999}, {"time": 1762473600, "value": 11.093899999999998}, {"time": 1762732800, "value": 11.117199999999999}, {"time": 1762819200, "value": 11.133999999999999}, {"time": 1762905600, "value": 11.148}, {"time": 1762992000, "value": 11.155999999999999}, {"time": 1763078400, "value": 11.173499999999999}, {"time": 1763337600, "value": 11.185999999999998}, {"time": 1763424000, "value": 11.193999999999999}, {"time": 1763510400, "value": 11.207999999999998}, {"time": 1763596800, "value": 11.218999999999998}, {"time": 1763683200, "value": 11.225499999999998}, {"time": 1763942400, "value": 11.229499999999998}, {"time": 1764028800, "value": 11.245999999999999}, {"time": 1764115200, "value": 11.261}, {"time": 1764201600, "value": 11.2775}, {"time": 1764288000, "value": 11.292}, {"time": 1764547200, "value": 11.305}, {"time": 1764633600, "value": 11.307500000000001}, {"time": 1764720000, "value": 11.309000000000001}, {"time": 1764806400, "value": 11.308}, {"time": 1764892800, "value": 11.306999999999999}, {"time": 1765152000, "value": 11.301499999999999}, {"time": 1765238400, "value": 11.289499999999999}, {"time": 1765324800, "value": 11.271999999999998}, {"time": 1765411200, "value": 11.255499999999998}, {"time": 1765497600, "value": 11.235499999999998}, {"time": 1765756800, "value": 11.227499999999997}, {"time": 1765843200, "value": 11.221999999999998}, {"time": 1765929600, "value": 11.208499999999997}, {"time": 1766016000, "value": 11.197999999999997}, {"time": 1766102400, "value": 11.194499999999996}, {"time": 1766361600, "value": 11.190499999999997}, {"time": 1766448000, "value": 11.178499999999996}, {"time": 1766534400, "value": 11.170999999999996}, {"time": 1766620800, "value": 11.163499999999996}, {"time": 1766707200, "value": 11.159999999999995}, {"time": 1766966400, "value": 11.153499999999996}, {"time": 1767052800, "value": 11.145499999999995}, {"time": 1767139200, "value": 11.138499999999997}, {"time": 1767571200, "value": 11.138999999999996}, {"time": 1767657600, "value": 11.145999999999995}, {"time": 1767744000, "value": 11.151999999999996}, {"time": 1767830400, "value": 11.155999999999995}, {"time": 1767916800, "value": 11.162499999999996}, {"time": 1768176000, "value": 11.167999999999996}, {"time": 1768262400, "value": 11.173999999999996}, {"time": 1768348800, "value": 11.166499999999996}, {"time": 1768435200, "value": 11.157999999999996}, {"time": 1768521600, "value": 11.140999999999995}, {"time": 1768780800, "value": 11.114999999999995}, {"time": 1768867200, "value": 11.091999999999995}, {"time": 1768953600, "value": 11.069499999999994}, {"time": 1769040000, "value": 11.044999999999995}, {"time": 1769126400, "value": 11.017499999999995}, {"time": 1769385600, "value": 10.987499999999994}, {"time": 1769472000, "value": 10.957499999999994}, {"time": 1769558400, "value": 10.921499999999995}, {"time": 1769644800, "value": 10.895499999999995}, {"time": 1769731200, "value": 10.866499999999993}, {"time": 1769990400, "value": 10.834499999999995}, {"time": 1770076800, "value": 10.792999999999994}, {"time": 1770163200, "value": 10.759499999999994}, {"time": 1770249600, "value": 10.738499999999995}, {"time": 1770336000, "value": 10.717999999999995}, {"time": 1770595200, "value": 10.697499999999994}, {"time": 1770681600, "value": 10.676999999999996}, {"time": 1770768000, "value": 10.662499999999996}, {"time": 1770854400, "value": 10.644999999999996}, {"time": 1770940800, "value": 10.630999999999997}, {"time": 1771891200, "value": 10.620499999999996}, {"time": 1771977600, "value": 10.605499999999996}, {"time": 1772064000, "value": 10.595499999999996}, {"time": 1772150400, "value": 10.586999999999994}, {"time": 1772409600, "value": 10.579999999999995}, {"time": 1772496000, "value": 10.575999999999995}, {"time": 1772582400, "value": 10.564499999999995}, {"time": 1772668800, "value": 10.562999999999995}, {"time": 1772755200, "value": 10.555999999999996}, {"time": 1773014400, "value": 10.552499999999997}, {"time": 1773100800, "value": 10.549999999999995}, {"time": 1773187200, "value": 10.552499999999997}, {"time": 1773273600, "value": 10.550999999999997}, {"time": 1773360000, "value": 10.542999999999996}, {"time": 1773619200, "value": 10.536499999999997}, {"time": 1773705600, "value": 10.534499999999998}, {"time": 1773792000, "value": 10.529499999999997}, {"time": 1773878400, "value": 10.519999999999998}, {"time": 1773964800, "value": 10.510499999999997}, {"time": 1774224000, "value": 10.487499999999997}, {"time": 1774310400, "value": 10.485999999999997}, {"time": 1774396800, "value": 10.489999999999998}, {"time": 1774483200, "value": 10.493499999999997}, {"time": 1774569600, "value": 10.499499999999998}, {"time": 1774828800, "value": 10.506499999999997}, {"time": 1774915200, "value": 10.516499999999997}, {"time": 1775001600, "value": 10.538499999999996}, {"time": 1775088000, "value": 10.561499999999997}, {"time": 1775174400, "value": 10.576499999999998}, {"time": 1775520000, "value": 10.589999999999998}, {"time": 1775606400, "value": 10.610499999999998}, {"time": 1775692800, "value": 10.620999999999999}, {"time": 1775779200, "value": 10.628499999999999}, {"time": 1776038400, "value": 10.635499999999999}, {"time": 1776124800, "value": 10.648}, {"time": 1776211200, "value": 10.657}, {"time": 1776297600, "value": 10.663499999999999}, {"time": 1776384000, "value": 10.669999999999998}, {"time": 1776643200, "value": 10.684499999999998}, {"time": 1776729600, "value": 10.715999999999998}, {"time": 1776816000, "value": 10.720999999999998}, {"time": 1776902400, "value": 10.723999999999998}, {"time": 1776988800, "value": 10.726999999999999}, {"time": 1777248000, "value": 10.745}, {"time": 1777334400, "value": 10.7685}, {"time": 1777420800, "value": 10.790499999999998}, {"time": 1777507200, "value": 10.8075}, {"time": 1778025600, "value": 10.812}, {"time": 1778112000, "value": 10.824499999999999}, {"time": 1778198400, "value": 10.838}, {"time": 1778457600, "value": 10.841}, {"time": 1778544000, "value": 10.8485}, {"time": 1778630400, "value": 10.851}, {"time": 1778716800, "value": 10.85}, {"time": 1778803200, "value": 10.841}, {"time": 1779062400, "value": 10.8235}, {"time": 1779148800, "value": 10.812000000000001}, {"time": 1779235200, "value": 10.8}, {"time": 1779321600, "value": 10.782}, {"time": 1779408000, "value": 10.761999999999999}, {"time": 1779667200, "value": 10.746999999999998}, {"time": 1779753600, "value": 10.736499999999998}, {"time": 1779840000, "value": 10.724499999999997}, {"time": 1779926400, "value": 10.688499999999998}, {"time": 1780012800, "value": 10.661999999999997}, {"time": 1780272000, "value": 10.635499999999997}, {"time": 1780358400, "value": 10.614999999999998}, {"time": 1780444800, "value": 10.596499999999997}, {"time": 1780531200, "value": 10.568999999999997}, {"time": 1780617600, "value": 10.552999999999997}, {"time": 1780876800, "value": 10.540499999999998}, {"time": 1780963200, "value": 10.534499999999998}, {"time": 1781049600, "value": 10.543499999999998}, {"time": 1781136000, "value": 10.555999999999997}, {"time": 1781222400, "value": 10.586499999999997}, {"time": 1781481600, "value": 10.614499999999998}, {"time": 1781568000, "value": 10.636499999999998}, {"time": 1781654400, "value": 10.654999999999998}, {"time": 1781740800, "value": 10.663999999999998}, {"time": 1782086400, "value": 10.680499999999999}, {"time": 1782172800, "value": 10.7}], "fx_line": [{"time": 1752624000, "value": 11.904}, {"time": 1752796800, "value": 12.154}, {"time": 1753142400, "value": 11.724}, {"time": 1753228800, "value": 12.034}, {"time": 1753660800, "value": 11.724}, {"time": 1753833600, "value": 12.044}, {"time": 1754006400, "value": 11.554}, {"time": 1754611200, "value": 11.934}, {"time": 1755216000, "value": 11.344}, {"time": 1755734400, "value": 11.594}, {"time": 1755820800, "value": 11.384}, {"time": 1756080000, "value": 11.934}, {"time": 1756339200, "value": 11.374}, {"time": 1756425600, "value": 11.624}, {"time": 1756944000, "value": 11.004}, {"time": 1757635200, "value": 11.284}, {"time": 1758585600, "value": 10.724}, {"time": 1758672000, "value": 11.024}, {"time": 1759968000, "value": 10.674}, {"time": 1760054400, "value": 10.894}, {"time": 1760313600, "value": 10.684}, {"time": 1760659200, "value": 11.22}, {"time": 1760918400, "value": 10.91}, {"time": 1761177600, "value": 11.35}, {"time": 1762128000, "value": 10.94}, {"time": 1762214400, "value": 11.28}, {"time": 1762732800, "value": 11.09}, {"time": 1762905600, "value": 11.43}, {"time": 1762992000, "value": 11.21}, {"time": 1763078400, "value": 11.48}, {"time": 1763510400, "value": 11.21}, {"time": 1763596800, "value": 11.63}, {"time": 1764028800, "value": 11.22}, {"time": 1764115200, "value": 11.49}, {"time": 1764547200, "value": 11.17}, {"time": 1764633600, "value": 11.37}, {"time": 1764892800, "value": 11.04}, {"time": 1765152000, "value": 11.24}, {"time": 1765324800, "value": 10.93}, {"time": 1766102400, "value": 11.29}, {"time": 1766534400, "value": 11.13}, {"time": 1766966400, "value": 11.26}, {"time": 1767139200, "value": 11.04}, {"time": 1767744000, "value": 11.46}, {"time": 1768176000, "value": 11.06}, {"time": 1768262400, "value": 11.18}, {"time": 1769644800, "value": 10.3}, {"time": 1769990400, "value": 10.67}, {"time": 1770076800, "value": 10.41}, {"time": 1770336000, "value": 10.78}, {"time": 1771977600, "value": 10.42}, {"time": 1772150400, "value": 10.56}, {"time": 1772409600, "value": 10.41}, {"time": 1772496000, "value": 10.59}, {"time": 1772582400, "value": 10.31}, {"time": 1773705600, "value": 10.71}, {"time": 1774224000, "value": 10.07}, {"time": 1775088000, "value": 10.96}, {"time": 1775520000, "value": 10.61}, {"time": 1775692800, "value": 10.86}, {"time": 1776038400, "value": 10.67}, {"time": 1776297600, "value": 10.87}, {"time": 1776643200, "value": 10.6}, {"time": 1776729600, "value": 10.8}, {"time": 1776988800, "value": 10.56}, {"time": 1777507200, "value": 11.24}, {"time": 1778457600, "value": 10.8}, {"time": 1778544000, "value": 11.0}, {"time": 1779667200, "value": 10.28}, {"time": 1779840000, "value": 10.49}, {"time": 1780012800, "value": 10.26}, {"time": 1780358400, "value": 10.74}, {"time": 1780531200, "value": 10.41}, {"time": 1781222400, "value": 11.25}, {"time": 1782086400, "value": 10.42}], "bi_line": [{"time": 1752105600, "value": 12.734}, {"time": 1753142400, "value": 11.724}, {"time": 1753833600, "value": 12.044}, {"time": 1755216000, "value": 11.344}, {"time": 1756080000, "value": 11.934}, {"time": 1759968000, "value": 10.674}, {"time": 1761177600, "value": 11.35}, {"time": 1762128000, "value": 10.94}, {"time": 1763596800, "value": 11.63}, {"time": 1765324800, "value": 10.93}, {"time": 1766102400, "value": 11.29}, {"time": 1767139200, "value": 11.04}, {"time": 1767744000, "value": 11.46}, {"time": 1769644800, "value": 10.3}, {"time": 1770336000, "value": 10.78}, {"time": 1772582400, "value": 10.31}, {"time": 1773705600, "value": 10.71}, {"time": 1774224000, "value": 10.07}, {"time": 1775088000, "value": 10.96}, {"time": 1780012800, "value": 10.26}, {"time": 1781222400, "value": 11.25}, {"time": 1782086400, "value": 10.42}]}, "volume": {"bars": [{"time": 1752019200, "value": 120596300.0, "color": "#C03A2B"}, {"time": 1752105600, "value": 248141600.0, "color": "#C03A2B"}, {"time": 1752192000, "value": 244374400.0, "color": "#2E7D32"}, {"time": 1752451200, "value": 187289600.0, "color": "#C03A2B"}, {"time": 1752537600, "value": 181053100.0, "color": "#2E7D32"}, {"time": 1752624000, "value": 192786400.0, "color": "#2E7D32"}, {"time": 1752710400, "value": 94464100.0, "color": "#2E7D32"}, {"time": 1752796800, "value": 124120600.0, "color": "#C03A2B"}, {"time": 1753056000, "value": 107902700.0, "color": "#2E7D32"}, {"time": 1753142400, "value": 193522900.0, "color": "#2E7D32"}, {"time": 1753228800, "value": 137052000.0, "color": "#C03A2B"}, {"time": 1753315200, "value": 195935100.0, "color": "#2E7D32"}, {"time": 1753401600, "value": 110826700.0, "color": "#C03A2B"}, {"time": 1753660800, "value": 123824300.0, "color": "#C03A2B"}, {"time": 1753747200, "value": 101281800.0, "color": "#2E7D32"}, {"time": 1753833600, "value": 171516400.0, "color": "#C03A2B"}, {"time": 1753920000, "value": 169008100.0, "color": "#2E7D32"}, {"time": 1754006400, "value": 101218700.0, "color": "#C03A2B"}, {"time": 1754265600, "value": 103269000.0, "color": "#C03A2B"}, {"time": 1754352000, "value": 113207800.0, "color": "#C03A2B"}, {"time": 1754438400, "value": 69044800.0, "color": "#2E7D32"}, {"time": 1754524800, "value": 72205300.0, "color": "#C03A2B"}, {"time": 1754611200, "value": 82979600.0, "color": "#2E7D32"}, {"time": 1754870400, "value": 93435300.0, "color": "#2E7D32"}, {"time": 1754956800, "value": 68005600.0, "color": "#C03A2B"}, {"time": 1755043200, "value": 111981300.0, "color": "#2E7D32"}, {"time": 1755129600, "value": 124104100.0, "color": "#2E7D32"}, {"time": 1755216000, "value": 194850300.0, "color": "#2E7D32"}, {"time": 1755475200, "value": 123905800.0, "color": "#C03A2B"}, {"time": 1755561600, "value": 89286000.0, "color": "#2E7D32"}, {"time": 1755648000, "value": 104873900.0, "color": "#C03A2B"}, {"time": 1755734400, "value": 121741800.0, "color": "#C03A2B"}, {"time": 1755820800, "value": 164426000.0, "color": "#2E7D32"}, {"time": 1756080000, "value": 304508800.0, "color": "#C03A2B"}, {"time": 1756166400, "value": 138359900.0, "color": "#2E7D32"}, {"time": 1756252800, "value": 186005000.0, "color": "#2E7D32"}, {"time": 1756339200, "value": 165358800.0, "color": "#2E7D32"}, {"time": 1756425600, "value": 180512600.0, "color": "#C03A2B"}, {"time": 1756684800, "value": 185845900.0, "color": "#2E7D32"}, {"time": 1756771200, "value": 149271600.0, "color": "#C03A2B"}, {"time": 1756857600, "value": 136723200.0, "color": "#2E7D32"}, {"time": 1756944000, "value": 129530000.0, "color": "#2E7D32"}, {"time": 1757030400, "value": 81966200.0, "color": "#2E7D32"}, {"time": 1757289600, "value": 92443100.0, "color": "#2E7D32"}, {"time": 1757376000, "value": 86053900.0, "color": "#C03A2B"}, {"time": 1757462400, "value": 79266800.0, "color": "#C03A2B"}, {"time": 1757548800, "value": 96393200.0, "color": "#C03A2B"}, {"time": 1757635200, "value": 94038500.0, "color": "#2E7D32"}, {"time": 1757894400, "value": 84038700.0, "color": "#2E7D32"}, {"time": 1757980800, "value": 70804800.0, "color": "#2E7D32"}, {"time": 1758067200, "value": 77112900.0, "color": "#C03A2B"}, {"time": 1758153600, "value": 138616000.0, "color": "#2E7D32"}, {"time": 1758240000, "value": 83465100.0, "color": "#C03A2B"}, {"time": 1758499200, "value": 59640200.0, "color": "#2E7D32"}, {"time": 1758585600, "value": 134143000.0, "color": "#C03A2B"}, {"time": 1758672000, "value": 113958300.0, "color": "#2E7D32"}, {"time": 1758758400, "value": 77327600.0, "color": "#2E7D32"}, {"time": 1758844800, "value": 75323900.0, "color": "#C03A2B"}, {"time": 1759104000, "value": 117601200.0, "color": "#2E7D32"}, {"time": 1759190400, "value": 83247900.0, "color": "#2E7D32"}, {"time": 1759968000, "value": 104746900.0, "color": "#C03A2B"}, {"time": 1760054400, "value": 108794800.0, "color": "#C03A2B"}, {"time": 1760313600, "value": 116880200.0, "color": "#C03A2B"}, {"time": 1760400000, "value": 184342800.0, "color": "#C03A2B"}, {"time": 1760486400, "value": 127106100.0, "color": "#C03A2B"}, {"time": 1760572800, "value": 126193700.0, "color": "#C03A2B"}, {"time": 1760659200, "value": 103966600.0, "color": "#2E7D32"}, {"time": 1760918400, "value": 95264100.0, "color": "#C03A2B"}, {"time": 1761004800, "value": 76116500.0, "color": "#C03A2B"}, {"time": 1761091200, "value": 83370300.0, "color": "#C03A2B"}, {"time": 1761177600, "value": 137311200.0, "color": "#C03A2B"}, {"time": 1761264000, "value": 98047500.0, "color": "#2E7D32"}, {"time": 1761523200, "value": 123948500.0, "color": "#2E7D32"}, {"time": 1761609600, "value": 82156800.0, "color": "#2E7D32"}, {"time": 1761696000, "value": 96621400.0, "color": "#2E7D32"}, {"time": 1761782400, "value": 94377000.0, "color": "#C03A2B"}, {"time": 1761868800, "value": 97019300.0, "color": "#2E7D32"}, {"time": 1762128000, "value": 95232600.0, "color": "#C03A2B"}, {"time": 1762214400, "value": 150300700.0, "color": "#C03A2B"}, {"time": 1762300800, "value": 79492600.0, "color": "#2E7D32"}, {"time": 1762387200, "value": 76658500.0, "color": "#C03A2B"}, {"time": 1762473600, "value": 73485100.0, "color": "#C03A2B"}, {"time": 1762732800, "value": 82720800.0, "color": "#C03A2B"}, {"time": 1762819200, "value": 88650900.0, "color": "#C03A2B"}, {"time": 1762905600, "value": 114132500.0, "color": "#2E7D32"}, {"time": 1762992000, "value": 97899100.0, "color": "#C03A2B"}, {"time": 1763078400, "value": 131699500.0, "color": "#C03A2B"}, {"time": 1763337600, "value": 99523300.0, "color": "#2E7D32"}, {"time": 1763424000, "value": 67007700.0, "color": "#2E7D32"}, {"time": 1763510400, "value": 133499600.0, "color": "#C03A2B"}, {"time": 1763596800, "value": 163704000.0, "color": "#C03A2B"}, {"time": 1763683200, "value": 146535900.0, "color": "#2E7D32"}, {"time": 1763942400, "value": 111711900.0, "color": "#2E7D32"}, {"time": 1764028800, "value": 102808100.0, "color": "#C03A2B"}, {"time": 1764115200, "value": 82130100.0, "color": "#2E7D32"}, {"time": 1764201600, "value": 101184700.0, "color": "#C03A2B"}, {"time": 1764288000, "value": 88435800.0, "color": "#2E7D32"}, {"time": 1764547200, "value": 103732300.0, "color": "#C03A2B"}, {"time": 1764633600, "value": 76806000.0, "color": "#2E7D32"}, {"time": 1764720000, "value": 94460100.0, "color": "#2E7D32"}, {"time": 1764806400, "value": 88609000.0, "color": "#2E7D32"}, {"time": 1764892800, "value": 89076600.0, "color": "#C03A2B"}, {"time": 1765152000, "value": 85589900.0, "color": "#C03A2B"}, {"time": 1765238400, "value": 73395700.0, "color": "#2E7D32"}, {"time": 1765324800, "value": 104406500.0, "color": "#2E7D32"}, {"time": 1765411200, "value": 92526100.0, "color": "#C03A2B"}, {"time": 1765497600, "value": 119189500.0, "color": "#2E7D32"}, {"time": 1765756800, "value": 94083300.0, "color": "#C03A2B"}, {"time": 1765843200, "value": 64735100.0, "color": "#2E7D32"}, {"time": 1765929600, "value": 70149500.0, "color": "#C03A2B"}, {"time": 1766016000, "value": 79046700.0, "color": "#C03A2B"}, {"time": 1766102400, "value": 64988600.0, "color": "#2E7D32"}, {"time": 1766361600, "value": 74236900.0, "color": "#2E7D32"}, {"time": 1766448000, "value": 66626600.0, "color": "#C03A2B"}, {"time": 1766534400, "value": 50524400.0, "color": "#2E7D32"}, {"time": 1766620800, "value": 54745500.0, "color": "#C03A2B"}, {"time": 1766707200, "value": 43634000.0, "color": "#2E7D32"}, {"time": 1766966400, "value": 64829500.0, "color": "#C03A2B"}, {"time": 1767052800, "value": 58258400.0, "color": "#2E7D32"}, {"time": 1767139200, "value": 59062000.0, "color": "#2E7D32"}, {"time": 1767571200, "value": 87549100.0, "color": "#C03A2B"}, {"time": 1767657600, "value": 130464800.0, "color": "#C03A2B"}, {"time": 1767744000, "value": 96623600.0, "color": "#2E7D32"}, {"time": 1767830400, "value": 110008500.0, "color": "#2E7D32"}, {"time": 1767916800, "value": 98339000.0, "color": "#2E7D32"}, {"time": 1768176000, "value": 85521300.0, "color": "#C03A2B"}, {"time": 1768262400, "value": 106154100.0, "color": "#2E7D32"}, {"time": 1768348800, "value": 127475700.0, "color": "#2E7D32"}, {"time": 1768435200, "value": 88496000.0, "color": "#2E7D32"}, {"time": 1768521600, "value": 111947300.0, "color": "#2E7D32"}, {"time": 1768780800, "value": 80474100.0, "color": "#2E7D32"}, {"time": 1768867200, "value": 77227600.0, "color": "#C03A2B"}, {"time": 1768953600, "value": 90012500.0, "color": "#2E7D32"}, {"time": 1769040000, "value": 78863500.0, "color": "#C03A2B"}, {"time": 1769126400, "value": 110999400.0, "color": "#2E7D32"}, {"time": 1769385600, "value": 110624700.0, "color": "#2E7D32"}, {"time": 1769472000, "value": 89409100.0, "color": "#2E7D32"}, {"time": 1769558400, "value": 143876600.0, "color": "#2E7D32"}, {"time": 1769644800, "value": 185299400.0, "color": "#C03A2B"}, {"time": 1769731200, "value": 109175500.0, "color": "#2E7D32"}, {"time": 1769990400, "value": 122317300.0, "color": "#C03A2B"}, {"time": 1770076800, "value": 80662800.0, "color": "#2E7D32"}, {"time": 1770163200, "value": 69541500.0, "color": "#C03A2B"}, {"time": 1770249600, "value": 117759100.0, "color": "#C03A2B"}, {"time": 1770336000, "value": 72771000.0, "color": "#2E7D32"}, {"time": 1770595200, "value": 61971700.0, "color": "#C03A2B"}, {"time": 1770681600, "value": 60043000.0, "color": "#2E7D32"}, {"time": 1770768000, "value": 43104100.0, "color": "#C03A2B"}, {"time": 1770854400, "value": 68134000.0, "color": "#2E7D32"}, {"time": 1770940800, "value": 55504700.0, "color": "#2E7D32"}, {"time": 1771891200, "value": 60251200.0, "color": "#2E7D32"}, {"time": 1771977600, "value": 106313500.0, "color": "#2E7D32"}, {"time": 1772064000, "value": 71273000.0, "color": "#C03A2B"}, {"time": 1772150400, "value": 61222800.0, "color": "#C03A2B"}, {"time": 1772409600, "value": 83887400.0, "color": "#C03A2B"}, {"time": 1772496000, "value": 102869500.0, "color": "#C03A2B"}, {"time": 1772582400, "value": 108971400.0, "color": "#2E7D32"}, {"time": 1772668800, "value": 71264100.0, "color": "#C03A2B"}, {"time": 1772755200, "value": 47657700.0, "color": "#C03A2B"}, {"time": 1773014400, "value": 83589200.0, "color": "#2E7D32"}, {"time": 1773100800, "value": 79011200.0, "color": "#C03A2B"}, {"time": 1773187200, "value": 72053500.0, "color": "#C03A2B"}, {"time": 1773273600, "value": 75490600.0, "color": "#C03A2B"}, {"time": 1773360000, "value": 84193900.0, "color": "#C03A2B"}, {"time": 1773619200, "value": 71560300.0, "color": "#2E7D32"}, {"time": 1773705600, "value": 107665700.0, "color": "#C03A2B"}, {"time": 1773792000, "value": 79107900.0, "color": "#2E7D32"}, {"time": 1773878400, "value": 62421200.0, "color": "#2E7D32"}, {"time": 1773964800, "value": 83408300.0, "color": "#2E7D32"}, {"time": 1774224000, "value": 158008800.0, "color": "#2E7D32"}, {"time": 1774310400, "value": 162225100.0, "color": "#C03A2B"}, {"time": 1774396800, "value": 74478000.0, "color": "#C03A2B"}, {"time": 1774483200, "value": 82766400.0, "color": "#C03A2B"}, {"time": 1774569600, "value": 88412900.0, "color": "#C03A2B"}, {"time": 1774828800, "value": 63252200.0, "color": "#C03A2B"}, {"time": 1774915200, "value": 116456500.0, "color": "#C03A2B"}, {"time": 1775001600, "value": 91892500.0, "color": "#C03A2B"}, {"time": 1775088000, "value": 114889500.0, "color": "#C03A2B"}, {"time": 1775174400, "value": 75775700.0, "color": "#2E7D32"}, {"time": 1775520000, "value": 60795500.0, "color": "#2E7D32"}, {"time": 1775606400, "value": 81297600.0, "color": "#C03A2B"}, {"time": 1775692800, "value": 60236500.0, "color": "#2E7D32"}, {"time": 1775779200, "value": 48104700.0, "color": "#2E7D32"}, {"time": 1776038400, "value": 40610400.0, "color": "#C03A2B"}, {"time": 1776124800, "value": 49615100.0, "color": "#C03A2B"}, {"time": 1776211200, "value": 50393800.0, "color": "#C03A2B"}, {"time": 1776297600, "value": 68091500.0, "color": "#2E7D32"}, {"time": 1776384000, "value": 72253000.0, "color": "#2E7D32"}, {"time": 1776643200, "value": 63003400.0, "color": "#C03A2B"}, {"time": 1776729600, "value": 80694600.0, "color": "#C03A2B"}, {"time": 1776816000, "value": 83905400.0, "color": "#2E7D32"}, {"time": 1776902400, "value": 64806700.0, "color": "#C03A2B"}, {"time": 1776988800, "value": 58271000.0, "color": "#C03A2B"}, {"time": 1777248000, "value": 340127600.0, "color": "#C03A2B"}, {"time": 1777334400, "value": 167425900.0, "color": "#C03A2B"}, {"time": 1777420800, "value": 137842300.0, "color": "#C03A2B"}, {"time": 1777507200, "value": 113924200.0, "color": "#2E7D32"}, {"time": 1778025600, "value": 121638800.0, "color": "#2E7D32"}, {"time": 1778112000, "value": 93695800.0, "color": "#C03A2B"}, {"time": 1778198400, "value": 79882000.0, "color": "#2E7D32"}, {"time": 1778457600, "value": 93186500.0, "color": "#2E7D32"}, {"time": 1778544000, "value": 102903800.0, "color": "#2E7D32"}, {"time": 1778630400, "value": 101797400.0, "color": "#2E7D32"}, {"time": 1778716800, "value": 79436800.0, "color": "#2E7D32"}, {"time": 1778803200, "value": 97474200.0, "color": "#2E7D32"}, {"time": 1779062400, "value": 85638200.0, "color": "#2E7D32"}, {"time": 1779148800, "value": 79352900.0, "color": "#C03A2B"}, {"time": 1779235200, "value": 74763200.0, "color": "#2E7D32"}, {"time": 1779321600, "value": 111021100.0, "color": "#2E7D32"}, {"time": 1779408000, "value": 95413300.0, "color": "#2E7D32"}, {"time": 1779667200, "value": 66310300.0, "color": "#C03A2B"}, {"time": 1779753600, "value": 83734700.0, "color": "#C03A2B"}, {"time": 1779840000, "value": 83972700.0, "color": "#C03A2B"}, {"time": 1779926400, "value": 90071100.0, "color": "#2E7D32"}, {"time": 1780012800, "value": 139936800.0, "color": "#C03A2B"}, {"time": 1780272000, "value": 95459600.0, "color": "#C03A2B"}, {"time": 1780358400, "value": 88542800.0, "color": "#C03A2B"}, {"time": 1780444800, "value": 82527200.0, "color": "#2E7D32"}, {"time": 1780531200, "value": 86927100.0, "color": "#2E7D32"}, {"time": 1780617600, "value": 100350300.0, "color": "#C03A2B"}, {"time": 1780876800, "value": 109092600.0, "color": "#C03A2B"}, {"time": 1780963200, "value": 114967200.0, "color": "#C03A2B"}, {"time": 1781049600, "value": 154317600.0, "color": "#C03A2B"}, {"time": 1781136000, "value": 115622200.0, "color": "#2E7D32"}, {"time": 1781222400, "value": 203235500.0, "color": "#C03A2B"}, {"time": 1781481600, "value": 154130500.0, "color": "#2E7D32"}, {"time": 1781568000, "value": 94270800.0, "color": "#2E7D32"}, {"time": 1781654400, "value": 96582800.0, "color": "#2E7D32"}, {"time": 1781740800, "value": 142689300.0, "color": "#2E7D32"}, {"time": 1782086400, "value": 126531700.0, "color": "#C03A2B"}, {"time": 1782172800, "value": 119060400.0, "color": "#C03A2B"}]}, "macd": {"diff": [{"time": 1752019200, "value": 0.0}, {"time": 1752105600, "value": 0.0271}, {"time": 1752192000, "value": 0.0265}, {"time": 1752451200, "value": 0.0313}, {"time": 1752537600, "value": 0.0148}, {"time": 1752624000, "value": -0.0055}, {"time": 1752710400, "value": -0.0254}, {"time": 1752796800, "value": -0.0318}, {"time": 1753056000, "value": -0.0437}, {"time": 1753142400, "value": -0.062}, {"time": 1753228800, "value": -0.0726}, {"time": 1753315200, "value": -0.0943}, {"time": 1753401600, "value": -0.1103}, {"time": 1753660800, "value": -0.1129}, {"time": 1753747200, "value": -0.123}, {"time": 1753833600, "value": -0.1177}, {"time": 1753920000, "value": -0.1329}, {"time": 1754006400, "value": -0.1393}, {"time": 1754265600, "value": -0.1411}, {"time": 1754352000, "value": -0.1274}, {"time": 1754438400, "value": -0.116}, {"time": 1754524800, "value": -0.1049}, {"time": 1754611200, "value": -0.1007}, {"time": 1754870400, "value": -0.1042}, {"time": 1754956800, "value": -0.1033}, {"time": 1755043200, "value": -0.1071}, {"time": 1755129600, "value": -0.1135}, {"time": 1755216000, "value": -0.1269}, {"time": 1755475200, "value": -0.1359}, {"time": 1755561600, "value": -0.1431}, {"time": 1755648000, "value": -0.1462}, {"time": 1755734400, "value": -0.1406}, {"time": 1755820800, "value": -0.1418}, {"time": 1756080000, "value": -0.11}, {"time": 1756166400, "value": -0.091}, {"time": 1756252800, "value": -0.0991}, {"time": 1756339200, "value": -0.1026}, {"time": 1756425600, "value": -0.1066}, {"time": 1756684800, "value": -0.1213}, {"time": 1756771200, "value": -0.1244}, {"time": 1756857600, "value": -0.1435}, {"time": 1756944000, "value": -0.1578}, {"time": 1757030400, "value": -0.1688}, {"time": 1757289600, "value": -0.177}, {"time": 1757376000, "value": -0.1774}, {"time": 1757462400, "value": -0.1742}, {"time": 1757548800, "value": -0.1632}, {"time": 1757635200, "value": -0.1633}, {"time": 1757894400, "value": -0.1669}, {"time": 1757980800, "value": -0.1687}, {"time": 1758067200, "value": -0.1682}, {"time": 1758153600, "value": -0.1842}, {"time": 1758240000, "value": -0.1914}, {"time": 1758499200, "value": -0.2005}, {"time": 1758585600, "value": -0.1943}, {"time": 1758672000, "value": -0.1918}, {"time": 1758758400, "value": -0.1925}, {"time": 1758844800, "value": -0.1909}, {"time": 1759104000, "value": -0.1899}, {"time": 1759190400, "value": -0.1893}, {"time": 1759968000, "value": -0.1819}, {"time": 1760054400, "value": -0.1717}, {"time": 1760313600, "value": -0.164}, {"time": 1760400000, "value": -0.1427}, {"time": 1760486400, "value": -0.1189}, {"time": 1760572800, "value": -0.0879}, {"time": 1760659200, "value": -0.0738}, {"time": 1760918400, "value": -0.0602}, {"time": 1761004800, "value": -0.0481}, {"time": 1761091200, "value": -0.0309}, {"time": 1761177600, "value": -0.0083}, {"time": 1761264000, "value": 0.0039}, {"time": 1761523200, "value": 0.0102}, {"time": 1761609600, "value": 0.0111}, {"time": 1761696000, "value": 0.0053}, {"time": 1761782400, "value": -0.0001}, {"time": 1761868800, "value": -0.0092}, {"time": 1762128000, "value": -0.0074}, {"time": 1762214400, "value": 0.0069}, {"time": 1762300800, "value": 0.0124}, {"time": 1762387200, "value": 0.0158}, {"time": 1762473600, "value": 0.0214}, {"time": 1762732800, "value": 0.032}, {"time": 1762819200, "value": 0.0431}, {"time": 1762905600, "value": 0.0521}, {"time": 1762992000, "value": 0.0602}, {"time": 1763078400, "value": 0.0697}, {"time": 1763337600, "value": 0.0701}, {"time": 1763424000, "value": 0.0632}, {"time": 1763510400, "value": 0.0738}, {"time": 1763596800, "value": 0.0853}, {"time": 1763683200, "value": 0.0806}, {"time": 1763942400, "value": 0.0687}, {"time": 1764028800, "value": 0.0747}, {"time": 1764115200, "value": 0.0697}, {"time": 1764201600, "value": 0.0666}, {"time": 1764288000, "value": 0.0554}, {"time": 1764547200, "value": 0.0523}, {"time": 1764633600, "value": 0.0454}, {"time": 1764720000, "value": 0.0323}, {"time": 1764806400, "value": 0.0168}, {"time": 1764892800, "value": 0.0078}, {"time": 1765152000, "value": -0.0003}, {"time": 1765238400, "value": -0.0138}, {"time": 1765324800, "value": -0.032}, {"time": 1765411200, "value": -0.0429}, {"time": 1765497600, "value": -0.0525}, {"time": 1765756800, "value": -0.0467}, {"time": 1765843200, "value": -0.044}, {"time": 1765929600, "value": -0.0373}, {"time": 1766016000, "value": -0.023}, {"time": 1766102400, "value": -0.013}, {"time": 1766361600, "value": -0.013}, {"time": 1766448000, "value": -0.0097}, {"time": 1766534400, "value": -0.0086}, {"time": 1766620800, "value": -0.0061}, {"time": 1766707200, "value": -0.0056}, {"time": 1766966400, "value": -0.0036}, {"time": 1767052800, "value": -0.0083}, {"time": 1767139200, "value": -0.0175}, {"time": 1767571200, "value": -0.0174}, {"time": 1767657600, "value": -0.0035}, {"time": 1767744000, "value": 0.0051}, {"time": 1767830400, "value": 0.0014}, {"time": 1767916800, "value": -0.0056}, {"time": 1768176000, "value": -0.0094}, {"time": 1768262400, "value": -0.013}, {"time": 1768348800, "value": -0.0245}, {"time": 1768435200, "value": -0.0372}, {"time": 1768521600, "value": -0.0564}, {"time": 1768780800, "value": -0.0762}, {"time": 1768867200, "value": -0.0878}, {"time": 1768953600, "value": -0.103}, {"time": 1769040000, "value": -0.1137}, {"time": 1769126400, "value": -0.1272}, {"time": 1769385600, "value": -0.1388}, {"time": 1769472000, "value": -0.1478}, {"time": 1769558400, "value": -0.1612}, {"time": 1769644800, "value": -0.1603}, {"time": 1769731200, "value": -0.1681}, {"time": 1769990400, "value": -0.17}, {"time": 1770076800, "value": -0.171}, {"time": 1770163200, "value": -0.1595}, {"time": 1770249600, "value": -0.1391}, {"time": 1770336000, "value": -0.1248}, {"time": 1770595200, "value": -0.1105}, {"time": 1770681600, "value": -0.0988}, {"time": 1770768000, "value": -0.0879}, {"time": 1770854400, "value": -0.0869}, {"time": 1770940800, "value": -0.0893}, {"time": 1771891200, "value": -0.0901}, {"time": 1771977600, "value": -0.0936}, {"time": 1772064000, "value": -0.0945}, {"time": 1772150400, "value": -0.0919}, {"time": 1772409600, "value": -0.0926}, {"time": 1772496000, "value": -0.0898}, {"time": 1772582400, "value": -0.1002}, {"time": 1772668800, "value": -0.0991}, {"time": 1772755200, "value": -0.0964}, {"time": 1773014400, "value": -0.098}, {"time": 1773100800, "value": -0.094}, {"time": 1773187200, "value": -0.0835}, {"time": 1773273600, "value": -0.0704}, {"time": 1773360000, "value": -0.0601}, {"time": 1773619200, "value": -0.0521}, {"time": 1773705600, "value": -0.0364}, {"time": 1773792000, "value": -0.0294}, {"time": 1773878400, "value": -0.0299}, {"time": 1773964800, "value": -0.0387}, {"time": 1774224000, "value": -0.0708}, {"time": 1774310400, "value": -0.0607}, {"time": 1774396800, "value": -0.0474}, {"time": 1774483200, "value": -0.0363}, {"time": 1774569600, "value": -0.021}, {"time": 1774828800, "value": -0.0111}, {"time": 1774915200, "value": 0.004}, {"time": 1775001600, "value": 0.0213}, {"time": 1775088000, "value": 0.0443}, {"time": 1775174400, "value": 0.0498}, {"time": 1775520000, "value": 0.0464}, {"time": 1775606400, "value": 0.0583}, {"time": 1775692800, "value": 0.0574}, {"time": 1775779200, "value": 0.0552}, {"time": 1776038400, "value": 0.0513}, {"time": 1776124800, "value": 0.0557}, {"time": 1776211200, "value": 0.0616}, {"time": 1776297600, "value": 0.056}, {"time": 1776384000, "value": 0.0445}, {"time": 1776643200, "value": 0.0391}, {"time": 1776729600, "value": 0.036}, {"time": 1776816000, "value": 0.0251}, {"time": 1776902400, "value": 0.018}, {"time": 1776988800, "value": 0.0121}, {"time": 1777248000, "value": 0.0377}, {"time": 1777334400, "value": 0.0637}, {"time": 1777420800, "value": 0.0882}, {"time": 1777507200, "value": 0.104}, {"time": 1778025600, "value": 0.1047}, {"time": 1778112000, "value": 0.1049}, {"time": 1778198400, "value": 0.0983}, {"time": 1778457600, "value": 0.0905}, {"time": 1778544000, "value": 0.0809}, {"time": 1778630400, "value": 0.0636}, {"time": 1778716800, "value": 0.0422}, {"time": 1778803200, "value": 0.0201}, {"time": 1779062400, "value": -0.0077}, {"time": 1779148800, "value": -0.0294}, {"time": 1779235200, "value": -0.0533}, {"time": 1779321600, "value": -0.077}, {"time": 1779408000, "value": -0.0963}, {"time": 1779667200, "value": -0.1103}, {"time": 1779753600, "value": -0.1112}, {"time": 1779840000, "value": -0.1131}, {"time": 1779926400, "value": -0.1212}, {"time": 1780012800, "value": -0.1047}, {"time": 1780272000, "value": -0.0858}, {"time": 1780358400, "value": -0.0628}, {"time": 1780444800, "value": -0.0512}, {"time": 1780531200, "value": -0.0552}, {"time": 1780617600, "value": -0.0449}, {"time": 1780876800, "value": -0.0322}, {"time": 1780963200, "value": -0.014}, {"time": 1781049600, "value": 0.0155}, {"time": 1781136000, "value": 0.0369}, {"time": 1781222400, "value": 0.0773}, {"time": 1781481600, "value": 0.0936}, {"time": 1781568000, "value": 0.0957}, {"time": 1781654400, "value": 0.0835}, {"time": 1781740800, "value": 0.0522}, {"time": 1782086400, "value": 0.0376}, {"time": 1782172800, "value": 0.0305}], "dea": [{"time": 1752019200, "value": 0.0}, {"time": 1752105600, "value": 0.0054}, {"time": 1752192000, "value": 0.0096}, {"time": 1752451200, "value": 0.014}, {"time": 1752537600, "value": 0.0141}, {"time": 1752624000, "value": 0.0102}, {"time": 1752710400, "value": 0.0031}, {"time": 1752796800, "value": -0.0039}, {"time": 1753056000, "value": -0.0119}, {"time": 1753142400, "value": -0.0219}, {"time": 1753228800, "value": -0.032}, {"time": 1753315200, "value": -0.0445}, {"time": 1753401600, "value": -0.0576}, {"time": 1753660800, "value": -0.0687}, {"time": 1753747200, "value": -0.0796}, {"time": 1753833600, "value": -0.0872}, {"time": 1753920000, "value": -0.0963}, {"time": 1754006400, "value": -0.1049}, {"time": 1754265600, "value": -0.1122}, {"time": 1754352000, "value": -0.1152}, {"time": 1754438400, "value": -0.1154}, {"time": 1754524800, "value": -0.1133}, {"time": 1754611200, "value": -0.1108}, {"time": 1754870400, "value": -0.1094}, {"time": 1754956800, "value": -0.1082}, {"time": 1755043200, "value": -0.108}, {"time": 1755129600, "value": -0.1091}, {"time": 1755216000, "value": -0.1127}, {"time": 1755475200, "value": -0.1173}, {"time": 1755561600, "value": -0.1225}, {"time": 1755648000, "value": -0.1272}, {"time": 1755734400, "value": -0.1299}, {"time": 1755820800, "value": -0.1323}, {"time": 1756080000, "value": -0.1278}, {"time": 1756166400, "value": -0.1205}, {"time": 1756252800, "value": -0.1162}, {"time": 1756339200, "value": -0.1135}, {"time": 1756425600, "value": -0.1121}, {"time": 1756684800, "value": -0.1139}, {"time": 1756771200, "value": -0.116}, {"time": 1756857600, "value": -0.1215}, {"time": 1756944000, "value": -0.1288}, {"time": 1757030400, "value": -0.1368}, {"time": 1757289600, "value": -0.1448}, {"time": 1757376000, "value": -0.1513}, {"time": 1757462400, "value": -0.1559}, {"time": 1757548800, "value": -0.1574}, {"time": 1757635200, "value": -0.1586}, {"time": 1757894400, "value": -0.1602}, {"time": 1757980800, "value": -0.1619}, {"time": 1758067200, "value": -0.1632}, {"time": 1758153600, "value": -0.1674}, {"time": 1758240000, "value": -0.1722}, {"time": 1758499200, "value": -0.1778}, {"time": 1758585600, "value": -0.1811}, {"time": 1758672000, "value": -0.1833}, {"time": 1758758400, "value": -0.1851}, {"time": 1758844800, "value": -0.1863}, {"time": 1759104000, "value": -0.187}, {"time": 1759190400, "value": -0.1875}, {"time": 1759968000, "value": -0.1863}, {"time": 1760054400, "value": -0.1834}, {"time": 1760313600, "value": -0.1795}, {"time": 1760400000, "value": -0.1722}, {"time": 1760486400, "value": -0.1615}, {"time": 1760572800, "value": -0.1468}, {"time": 1760659200, "value": -0.1322}, {"time": 1760918400, "value": -0.1178}, {"time": 1761004800, "value": -0.1039}, {"time": 1761091200, "value": -0.0893}, {"time": 1761177600, "value": -0.0731}, {"time": 1761264000, "value": -0.0577}, {"time": 1761523200, "value": -0.0441}, {"time": 1761609600, "value": -0.0331}, {"time": 1761696000, "value": -0.0254}, {"time": 1761782400, "value": -0.0203}, {"time": 1761868800, "value": -0.0181}, {"time": 1762128000, "value": -0.016}, {"time": 1762214400, "value": -0.0114}, {"time": 1762300800, "value": -0.0066}, {"time": 1762387200, "value": -0.0021}, {"time": 1762473600, "value": 0.0026}, {"time": 1762732800, "value": 0.0085}, {"time": 1762819200, "value": 0.0154}, {"time": 1762905600, "value": 0.0227}, {"time": 1762992000, "value": 0.0302}, {"time": 1763078400, "value": 0.0381}, {"time": 1763337600, "value": 0.0445}, {"time": 1763424000, "value": 0.0482}, {"time": 1763510400, "value": 0.0534}, {"time": 1763596800, "value": 0.0597}, {"time": 1763683200, "value": 0.0639}, {"time": 1763942400, "value": 0.0649}, {"time": 1764028800, "value": 0.0668}, {"time": 1764115200, "value": 0.0674}, {"time": 1764201600, "value": 0.0672}, {"time": 1764288000, "value": 0.0649}, {"time": 1764547200, "value": 0.0624}, {"time": 1764633600, "value": 0.059}, {"time": 1764720000, "value": 0.0536}, {"time": 1764806400, "value": 0.0463}, {"time": 1764892800, "value": 0.0386}, {"time": 1765152000, "value": 0.0308}, {"time": 1765238400, "value": 0.0219}, {"time": 1765324800, "value": 0.0111}, {"time": 1765411200, "value": 0.0003}, {"time": 1765497600, "value": -0.0103}, {"time": 1765756800, "value": -0.0175}, {"time": 1765843200, "value": -0.0228}, {"time": 1765929600, "value": -0.0257}, {"time": 1766016000, "value": -0.0252}, {"time": 1766102400, "value": -0.0227}, {"time": 1766361600, "value": -0.0208}, {"time": 1766448000, "value": -0.0186}, {"time": 1766534400, "value": -0.0166}, {"time": 1766620800, "value": -0.0145}, {"time": 1766707200, "value": -0.0127}, {"time": 1766966400, "value": -0.0109}, {"time": 1767052800, "value": -0.0104}, {"time": 1767139200, "value": -0.0118}, {"time": 1767571200, "value": -0.0129}, {"time": 1767657600, "value": -0.011}, {"time": 1767744000, "value": -0.0078}, {"time": 1767830400, "value": -0.006}, {"time": 1767916800, "value": -0.0059}, {"time": 1768176000, "value": -0.0066}, {"time": 1768262400, "value": -0.0079}, {"time": 1768348800, "value": -0.0112}, {"time": 1768435200, "value": -0.0164}, {"time": 1768521600, "value": -0.0244}, {"time": 1768780800, "value": -0.0348}, {"time": 1768867200, "value": -0.0454}, {"time": 1768953600, "value": -0.0569}, {"time": 1769040000, "value": -0.0683}, {"time": 1769126400, "value": -0.08}, {"time": 1769385600, "value": -0.0918}, {"time": 1769472000, "value": -0.103}, {"time": 1769558400, "value": -0.1146}, {"time": 1769644800, "value": -0.1238}, {"time": 1769731200, "value": -0.1326}, {"time": 1769990400, "value": -0.1401}, {"time": 1770076800, "value": -0.1463}, {"time": 1770163200, "value": -0.1489}, {"time": 1770249600, "value": -0.147}, {"time": 1770336000, "value": -0.1425}, {"time": 1770595200, "value": -0.1361}, {"time": 1770681600, "value": -0.1287}, {"time": 1770768000, "value": -0.1205}, {"time": 1770854400, "value": -0.1138}, {"time": 1770940800, "value": -0.1089}, {"time": 1771891200, "value": -0.1051}, {"time": 1771977600, "value": -0.1028}, {"time": 1772064000, "value": -0.1012}, {"time": 1772150400, "value": -0.0993}, {"time": 1772409600, "value": -0.098}, {"time": 1772496000, "value": -0.0963}, {"time": 1772582400, "value": -0.0971}, {"time": 1772668800, "value": -0.0975}, {"time": 1772755200, "value": -0.0973}, {"time": 1773014400, "value": -0.0974}, {"time": 1773100800, "value": -0.0967}, {"time": 1773187200, "value": -0.0941}, {"time": 1773273600, "value": -0.0894}, {"time": 1773360000, "value": -0.0835}, {"time": 1773619200, "value": -0.0772}, {"time": 1773705600, "value": -0.0691}, {"time": 1773792000, "value": -0.0611}, {"time": 1773878400, "value": -0.0549}, {"time": 1773964800, "value": -0.0516}, {"time": 1774224000, "value": -0.0555}, {"time": 1774310400, "value": -0.0565}, {"time": 1774396800, "value": -0.0547}, {"time": 1774483200, "value": -0.051}, {"time": 1774569600, "value": -0.045}, {"time": 1774828800, "value": -0.0382}, {"time": 1774915200, "value": -0.0298}, {"time": 1775001600, "value": -0.0196}, {"time": 1775088000, "value": -0.0068}, {"time": 1775174400, "value": 0.0045}, {"time": 1775520000, "value": 0.0129}, {"time": 1775606400, "value": 0.022}, {"time": 1775692800, "value": 0.0291}, {"time": 1775779200, "value": 0.0343}, {"time": 1776038400, "value": 0.0377}, {"time": 1776124800, "value": 0.0413}, {"time": 1776211200, "value": 0.0454}, {"time": 1776297600, "value": 0.0475}, {"time": 1776384000, "value": 0.0469}, {"time": 1776643200, "value": 0.0453}, {"time": 1776729600, "value": 0.0435}, {"time": 1776816000, "value": 0.0398}, {"time": 1776902400, "value": 0.0354}, {"time": 1776988800, "value": 0.0308}, {"time": 1777248000, "value": 0.0322}, {"time": 1777334400, "value": 0.0385}, {"time": 1777420800, "value": 0.0484}, {"time": 1777507200, "value": 0.0595}, {"time": 1778025600, "value": 0.0686}, {"time": 1778112000, "value": 0.0758}, {"time": 1778198400, "value": 0.0803}, {"time": 1778457600, "value": 0.0824}, {"time": 1778544000, "value": 0.0821}, {"time": 1778630400, "value": 0.0784}, {"time": 1778716800, "value": 0.0711}, {"time": 1778803200, "value": 0.0609}, {"time": 1779062400, "value": 0.0472}, {"time": 1779148800, "value": 0.0319}, {"time": 1779235200, "value": 0.0148}, {"time": 1779321600, "value": -0.0035}, {"time": 1779408000, "value": -0.0221}, {"time": 1779667200, "value": -0.0397}, {"time": 1779753600, "value": -0.054}, {"time": 1779840000, "value": -0.0658}, {"time": 1779926400, "value": -0.0769}, {"time": 1780012800, "value": -0.0825}, {"time": 1780272000, "value": -0.0831}, {"time": 1780358400, "value": -0.0791}, {"time": 1780444800, "value": -0.0735}, {"time": 1780531200, "value": -0.0698}, {"time": 1780617600, "value": -0.0648}, {"time": 1780876800, "value": -0.0583}, {"time": 1780963200, "value": -0.0495}, {"time": 1781049600, "value": -0.0365}, {"time": 1781136000, "value": -0.0218}, {"time": 1781222400, "value": -0.002}, {"time": 1781481600, "value": 0.0171}, {"time": 1781568000, "value": 0.0329}, {"time": 1781654400, "value": 0.043}, {"time": 1781740800, "value": 0.0448}, {"time": 1782086400, "value": 0.0434}, {"time": 1782172800, "value": 0.0408}], "macd": [{"time": 1752019200, "value": 0.0, "color": "#C03A2B"}, {"time": 1752105600, "value": 0.0434, "color": "#C03A2B"}, {"time": 1752192000, "value": 0.0338, "color": "#C03A2B"}, {"time": 1752451200, "value": 0.0346, "color": "#C03A2B"}, {"time": 1752537600, "value": 0.0014, "color": "#C03A2B"}, {"time": 1752624000, "value": -0.0314, "color": "#2E7D32"}, {"time": 1752710400, "value": -0.057, "color": "#2E7D32"}, {"time": 1752796800, "value": -0.0558, "color": "#2E7D32"}, {"time": 1753056000, "value": -0.0636, "color": "#2E7D32"}, {"time": 1753142400, "value": -0.0802, "color": "#2E7D32"}, {"time": 1753228800, "value": -0.0812, "color": "#2E7D32"}, {"time": 1753315200, "value": -0.0996, "color": "#2E7D32"}, {"time": 1753401600, "value": -0.1054, "color": "#2E7D32"}, {"time": 1753660800, "value": -0.0884, "color": "#2E7D32"}, {"time": 1753747200, "value": -0.0868, "color": "#2E7D32"}, {"time": 1753833600, "value": -0.061, "color": "#2E7D32"}, {"time": 1753920000, "value": -0.0732, "color": "#2E7D32"}, {"time": 1754006400, "value": -0.0688, "color": "#2E7D32"}, {"time": 1754265600, "value": -0.0578, "color": "#2E7D32"}, {"time": 1754352000, "value": -0.0244, "color": "#2E7D32"}, {"time": 1754438400, "value": -0.0012, "color": "#2E7D32"}, {"time": 1754524800, "value": 0.0168, "color": "#C03A2B"}, {"time": 1754611200, "value": 0.0202, "color": "#C03A2B"}, {"time": 1754870400, "value": 0.0104, "color": "#C03A2B"}, {"time": 1754956800, "value": 0.0098, "color": "#C03A2B"}, {"time": 1755043200, "value": 0.0018, "color": "#C03A2B"}, {"time": 1755129600, "value": -0.0088, "color": "#2E7D32"}, {"time": 1755216000, "value": -0.0284, "color": "#2E7D32"}, {"time": 1755475200, "value": -0.0372, "color": "#2E7D32"}, {"time": 1755561600, "value": -0.0412, "color": "#2E7D32"}, {"time": 1755648000, "value": -0.038, "color": "#2E7D32"}, {"time": 1755734400, "value": -0.0214, "color": "#2E7D32"}, {"time": 1755820800, "value": -0.019, "color": "#2E7D32"}, {"time": 1756080000, "value": 0.0356, "color": "#C03A2B"}, {"time": 1756166400, "value": 0.059, "color": "#C03A2B"}, {"time": 1756252800, "value": 0.0342, "color": "#C03A2B"}, {"time": 1756339200, "value": 0.0218, "color": "#C03A2B"}, {"time": 1756425600, "value": 0.011, "color": "#C03A2B"}, {"time": 1756684800, "value": -0.0148, "color": "#2E7D32"}, {"time": 1756771200, "value": -0.0168, "color": "#2E7D32"}, {"time": 1756857600, "value": -0.044, "color": "#2E7D32"}, {"time": 1756944000, "value": -0.058, "color": "#2E7D32"}, {"time": 1757030400, "value": -0.064, "color": "#2E7D32"}, {"time": 1757289600, "value": -0.0644, "color": "#2E7D32"}, {"time": 1757376000, "value": -0.0522, "color": "#2E7D32"}, {"time": 1757462400, "value": -0.0366, "color": "#2E7D32"}, {"time": 1757548800, "value": -0.0116, "color": "#2E7D32"}, {"time": 1757635200, "value": -0.0094, "color": "#2E7D32"}, {"time": 1757894400, "value": -0.0134, "color": "#2E7D32"}, {"time": 1757980800, "value": -0.0136, "color": "#2E7D32"}, {"time": 1758067200, "value": -0.01, "color": "#2E7D32"}, {"time": 1758153600, "value": -0.0336, "color": "#2E7D32"}, {"time": 1758240000, "value": -0.0384, "color": "#2E7D32"}, {"time": 1758499200, "value": -0.0454, "color": "#2E7D32"}, {"time": 1758585600, "value": -0.0264, "color": "#2E7D32"}, {"time": 1758672000, "value": -0.017, "color": "#2E7D32"}, {"time": 1758758400, "value": -0.0148, "color": "#2E7D32"}, {"time": 1758844800, "value": -0.0092, "color": "#2E7D32"}, {"time": 1759104000, "value": -0.0058, "color": "#2E7D32"}, {"time": 1759190400, "value": -0.0036, "color": "#2E7D32"}, {"time": 1759968000, "value": 0.0088, "color": "#C03A2B"}, {"time": 1760054400, "value": 0.0234, "color": "#C03A2B"}, {"time": 1760313600, "value": 0.031, "color": "#C03A2B"}, {"time": 1760400000, "value": 0.059, "color": "#C03A2B"}, {"time": 1760486400, "value": 0.0852, "color": "#C03A2B"}, {"time": 1760572800, "value": 0.1178, "color": "#C03A2B"}, {"time": 1760659200, "value": 0.1168, "color": "#C03A2B"}, {"time": 1760918400, "value": 0.1152, "color": "#C03A2B"}, {"time": 1761004800, "value": 0.1116, "color": "#C03A2B"}, {"time": 1761091200, "value": 0.1168, "color": "#C03A2B"}, {"time": 1761177600, "value": 0.1296, "color": "#C03A2B"}, {"time": 1761264000, "value": 0.1232, "color": "#C03A2B"}, {"time": 1761523200, "value": 0.1086, "color": "#C03A2B"}, {"time": 1761609600, "value": 0.0884, "color": "#C03A2B"}, {"time": 1761696000, "value": 0.0614, "color": "#C03A2B"}, {"time": 1761782400, "value": 0.0404, "color": "#C03A2B"}, {"time": 1761868800, "value": 0.0178, "color": "#C03A2B"}, {"time": 1762128000, "value": 0.0172, "color": "#C03A2B"}, {"time": 1762214400, "value": 0.0366, "color": "#C03A2B"}, {"time": 1762300800, "value": 0.038, "color": "#C03A2B"}, {"time": 1762387200, "value": 0.0358, "color": "#C03A2B"}, {"time": 1762473600, "value": 0.0376, "color": "#C03A2B"}, {"time": 1762732800, "value": 0.047, "color": "#C03A2B"}, {"time": 1762819200, "value": 0.0554, "color": "#C03A2B"}, {"time": 1762905600, "value": 0.0588, "color": "#C03A2B"}, {"time": 1762992000, "value": 0.06, "color": "#C03A2B"}, {"time": 1763078400, "value": 0.0632, "color": "#C03A2B"}, {"time": 1763337600, "value": 0.0512, "color": "#C03A2B"}, {"time": 1763424000, "value": 0.03, "color": "#C03A2B"}, {"time": 1763510400, "value": 0.0408, "color": "#C03A2B"}, {"time": 1763596800, "value": 0.0512, "color": "#C03A2B"}, {"time": 1763683200, "value": 0.0334, "color": "#C03A2B"}, {"time": 1763942400, "value": 0.0076, "color": "#C03A2B"}, {"time": 1764028800, "value": 0.0158, "color": "#C03A2B"}, {"time": 1764115200, "value": 0.0046, "color": "#C03A2B"}, {"time": 1764201600, "value": -0.0012, "color": "#2E7D32"}, {"time": 1764288000, "value": -0.019, "color": "#2E7D32"}, {"time": 1764547200, "value": -0.0202, "color": "#2E7D32"}, {"time": 1764633600, "value": -0.0272, "color": "#2E7D32"}, {"time": 1764720000, "value": -0.0426, "color": "#2E7D32"}, {"time": 1764806400, "value": -0.059, "color": "#2E7D32"}, {"time": 1764892800, "value": -0.0616, "color": "#2E7D32"}, {"time": 1765152000, "value": -0.0622, "color": "#2E7D32"}, {"time": 1765238400, "value": -0.0714, "color": "#2E7D32"}, {"time": 1765324800, "value": -0.0862, "color": "#2E7D32"}, {"time": 1765411200, "value": -0.0864, "color": "#2E7D32"}, {"time": 1765497600, "value": -0.0844, "color": "#2E7D32"}, {"time": 1765756800, "value": -0.0584, "color": "#2E7D32"}, {"time": 1765843200, "value": -0.0424, "color": "#2E7D32"}, {"time": 1765929600, "value": -0.0232, "color": "#2E7D32"}, {"time": 1766016000, "value": 0.0044, "color": "#C03A2B"}, {"time": 1766102400, "value": 0.0194, "color": "#C03A2B"}, {"time": 1766361600, "value": 0.0156, "color": "#C03A2B"}, {"time": 1766448000, "value": 0.0178, "color": "#C03A2B"}, {"time": 1766534400, "value": 0.016, "color": "#C03A2B"}, {"time": 1766620800, "value": 0.0168, "color": "#C03A2B"}, {"time": 1766707200, "value": 0.0142, "color": "#C03A2B"}, {"time": 1766966400, "value": 0.0146, "color": "#C03A2B"}, {"time": 1767052800, "value": 0.0042, "color": "#C03A2B"}, {"time": 1767139200, "value": -0.0114, "color": "#2E7D32"}, {"time": 1767571200, "value": -0.009, "color": "#2E7D32"}, {"time": 1767657600, "value": 0.015, "color": "#C03A2B"}, {"time": 1767744000, "value": 0.0258, "color": "#C03A2B"}, {"time": 1767830400, "value": 0.0148, "color": "#C03A2B"}, {"time": 1767916800, "value": 0.0006, "color": "#C03A2B"}, {"time": 1768176000, "value": -0.0056, "color": "#2E7D32"}, {"time": 1768262400, "value": -0.0102, "color": "#2E7D32"}, {"time": 1768348800, "value": -0.0266, "color": "#2E7D32"}, {"time": 1768435200, "value": -0.0416, "color": "#2E7D32"}, {"time": 1768521600, "value": -0.064, "color": "#2E7D32"}, {"time": 1768780800, "value": -0.0828, "color": "#2E7D32"}, {"time": 1768867200, "value": -0.0848, "color": "#2E7D32"}, {"time": 1768953600, "value": -0.0922, "color": "#2E7D32"}, {"time": 1769040000, "value": -0.0908, "color": "#2E7D32"}, {"time": 1769126400, "value": -0.0944, "color": "#2E7D32"}, {"time": 1769385600, "value": -0.094, "color": "#2E7D32"}, {"time": 1769472000, "value": -0.0896, "color": "#2E7D32"}, {"time": 1769558400, "value": -0.0932, "color": "#2E7D32"}, {"time": 1769644800, "value": -0.073, "color": "#2E7D32"}, {"time": 1769731200, "value": -0.071, "color": "#2E7D32"}, {"time": 1769990400, "value": -0.0598, "color": "#2E7D32"}, {"time": 1770076800, "value": -0.0494, "color": "#2E7D32"}, {"time": 1770163200, "value": -0.0212, "color": "#2E7D32"}, {"time": 1770249600, "value": 0.0158, "color": "#C03A2B"}, {"time": 1770336000, "value": 0.0354, "color": "#C03A2B"}, {"time": 1770595200, "value": 0.0512, "color": "#C03A2B"}, {"time": 1770681600, "value": 0.0598, "color": "#C03A2B"}, {"time": 1770768000, "value": 0.0652, "color": "#C03A2B"}, {"time": 1770854400, "value": 0.0538, "color": "#C03A2B"}, {"time": 1770940800, "value": 0.0392, "color": "#C03A2B"}, {"time": 1771891200, "value": 0.03, "color": "#C03A2B"}, {"time": 1771977600, "value": 0.0184, "color": "#C03A2B"}, {"time": 1772064000, "value": 0.0134, "color": "#C03A2B"}, {"time": 1772150400, "value": 0.0148, "color": "#C03A2B"}, {"time": 1772409600, "value": 0.0108, "color": "#C03A2B"}, {"time": 1772496000, "value": 0.013, "color": "#C03A2B"}, {"time": 1772582400, "value": -0.0062, "color": "#2E7D32"}, {"time": 1772668800, "value": -0.0032, "color": "#2E7D32"}, {"time": 1772755200, "value": 0.0018, "color": "#C03A2B"}, {"time": 1773014400, "value": -0.0012, "color": "#2E7D32"}, {"time": 1773100800, "value": 0.0054, "color": "#C03A2B"}, {"time": 1773187200, "value": 0.0212, "color": "#C03A2B"}, {"time": 1773273600, "value": 0.038, "color": "#C03A2B"}, {"time": 1773360000, "value": 0.0468, "color": "#C03A2B"}, {"time": 1773619200, "value": 0.0502, "color": "#C03A2B"}, {"time": 1773705600, "value": 0.0654, "color": "#C03A2B"}, {"time": 1773792000, "value": 0.0634, "color": "#C03A2B"}, {"time": 1773878400, "value": 0.05, "color": "#C03A2B"}, {"time": 1773964800, "value": 0.0258, "color": "#C03A2B"}, {"time": 1774224000, "value": -0.0306, "color": "#2E7D32"}, {"time": 1774310400, "value": -0.0084, "color": "#2E7D32"}, {"time": 1774396800, "value": 0.0146, "color": "#C03A2B"}, {"time": 1774483200, "value": 0.0294, "color": "#C03A2B"}, {"time": 1774569600, "value": 0.048, "color": "#C03A2B"}, {"time": 1774828800, "value": 0.0542, "color": "#C03A2B"}, {"time": 1774915200, "value": 0.0676, "color": "#C03A2B"}, {"time": 1775001600, "value": 0.0818, "color": "#C03A2B"}, {"time": 1775088000, "value": 0.1022, "color": "#C03A2B"}, {"time": 1775174400, "value": 0.0906, "color": "#C03A2B"}, {"time": 1775520000, "value": 0.067, "color": "#C03A2B"}, {"time": 1775606400, "value": 0.0726, "color": "#C03A2B"}, {"time": 1775692800, "value": 0.0566, "color": "#C03A2B"}, {"time": 1775779200, "value": 0.0418, "color": "#C03A2B"}, {"time": 1776038400, "value": 0.0272, "color": "#C03A2B"}, {"time": 1776124800, "value": 0.0288, "color": "#C03A2B"}, {"time": 1776211200, "value": 0.0324, "color": "#C03A2B"}, {"time": 1776297600, "value": 0.017, "color": "#C03A2B"}, {"time": 1776384000, "value": -0.0048, "color": "#2E7D32"}, {"time": 1776643200, "value": -0.0124, "color": "#2E7D32"}, {"time": 1776729600, "value": -0.015, "color": "#2E7D32"}, {"time": 1776816000, "value": -0.0294, "color": "#2E7D32"}, {"time": 1776902400, "value": -0.0348, "color": "#2E7D32"}, {"time": 1776988800, "value": -0.0374, "color": "#2E7D32"}, {"time": 1777248000, "value": 0.011, "color": "#C03A2B"}, {"time": 1777334400, "value": 0.0504, "color": "#C03A2B"}, {"time": 1777420800, "value": 0.0796, "color": "#C03A2B"}, {"time": 1777507200, "value": 0.089, "color": "#C03A2B"}, {"time": 1778025600, "value": 0.0722, "color": "#C03A2B"}, {"time": 1778112000, "value": 0.0582, "color": "#C03A2B"}, {"time": 1778198400, "value": 0.036, "color": "#C03A2B"}, {"time": 1778457600, "value": 0.0162, "color": "#C03A2B"}, {"time": 1778544000, "value": -0.0024, "color": "#2E7D32"}, {"time": 1778630400, "value": -0.0296, "color": "#2E7D32"}, {"time": 1778716800, "value": -0.0578, "color": "#2E7D32"}, {"time": 1778803200, "value": -0.0816, "color": "#2E7D32"}, {"time": 1779062400, "value": -0.1098, "color": "#2E7D32"}, {"time": 1779148800, "value": -0.1226, "color": "#2E7D32"}, {"time": 1779235200, "value": -0.1362, "color": "#2E7D32"}, {"time": 1779321600, "value": -0.147, "color": "#2E7D32"}, {"time": 1779408000, "value": -0.1484, "color": "#2E7D32"}, {"time": 1779667200, "value": -0.1412, "color": "#2E7D32"}, {"time": 1779753600, "value": -0.1144, "color": "#2E7D32"}, {"time": 1779840000, "value": -0.0946, "color": "#2E7D32"}, {"time": 1779926400, "value": -0.0886, "color": "#2E7D32"}, {"time": 1780012800, "value": -0.0444, "color": "#2E7D32"}, {"time": 1780272000, "value": -0.0054, "color": "#2E7D32"}, {"time": 1780358400, "value": 0.0326, "color": "#C03A2B"}, {"time": 1780444800, "value": 0.0446, "color": "#C03A2B"}, {"time": 1780531200, "value": 0.0292, "color": "#C03A2B"}, {"time": 1780617600, "value": 0.0398, "color": "#C03A2B"}, {"time": 1780876800, "value": 0.0522, "color": "#C03A2B"}, {"time": 1780963200, "value": 0.071, "color": "#C03A2B"}, {"time": 1781049600, "value": 0.104, "color": "#C03A2B"}, {"time": 1781136000, "value": 0.1174, "color": "#C03A2B"}, {"time": 1781222400, "value": 0.1586, "color": "#C03A2B"}, {"time": 1781481600, "value": 0.153, "color": "#C03A2B"}, {"time": 1781568000, "value": 0.1256, "color": "#C03A2B"}, {"time": 1781654400, "value": 0.081, "color": "#C03A2B"}, {"time": 1781740800, "value": 0.0148, "color": "#C03A2B"}, {"time": 1782086400, "value": -0.0116, "color": "#2E7D32"}, {"time": 1782172800, "value": -0.0206, "color": "#2E7D32"}]}, "signals": []}], "theme": {"background": "#FBF9F4", "text": "#1A1A17", "grid": "#E8E2D4", "up": "#C03A2B", "down": "#2E7D32", "sma5": "#C78A2E", "sma20": "#2D6A8C", "fx_dashed": "#8B7E5E", "bi": "#1F3C6E", "bi_active": "#1F3C6E", "macd_diff": "#1F3C6E", "macd_dea": "#C78A2E"}, "themes": {"light": {"background": "#FBF9F4", "text": "#1A1A17", "grid": "#E8E2D4", "up": "#C03A2B", "down": "#2E7D32", "sma5": "#C78A2E", "sma20": "#2D6A8C", "fx_dashed": "#8B7E5E", "bi": "#1F3C6E", "bi_active": "#1F3C6E", "macd_diff": "#1F3C6E", "macd_dea": "#C78A2E"}, "dark": {"background": "#0E1116", "text": "#EFEBE0", "grid": "#1F242E", "up": "#E94B3C", "down": "#5BB85B", "sma5": "#E6A93B", "sma20": "#6EB6E4", "fx_dashed": "#8B8678", "bi": "#A8B8E8", "bi_active": "#A8B8E8", "macd_diff": "#A8B8E8", "macd_dea": "#E6A93B"}}, "theme_name": "light"};
+    var THEMES = PAYLOAD.themes;            // { light: {...}, dark: {...} }
+    var currentThemeName = PAYLOAD.theme_name || 'light';
+    var currentTheme = THEMES[currentThemeName];
+
+    var tabsBar = document.getElementById("tabs");
+    var root = document.getElementById("root");
+    var groups = [];     // 每周期一个 { trio, els, paneEl, tipEl, series, raw, candleByTime, macdByTime }
+    var crosshairTime = null;  // 最近一次 hover 的 unix 秒；用于跨 tab 联动
+    var dashedLineStyle = LightweightCharts && LightweightCharts.LineStyle
+      ? LightweightCharts.LineStyle.Dashed : 2;
+    var MIN_AXIS_W = 64;
+
+    function applySize(chart, container) {
+      var w = container.clientWidth || (container.parentElement && container.parentElement.clientWidth) || 800;
+      var h = container.clientHeight || 200;
+      chart.applyOptions({ width: w, height: h });
+    }
+
+    function commonOpts(opts, theme) {
+      return Object.assign({
+        layout: {
+          background: { type: "solid", color: theme.background },
+          textColor: theme.text,
+          fontFamily: "'IBM Plex Mono', 'SF Mono', monospace",
+          fontSize: 11,
+        },
+        grid: {
+          vertLines: { color: theme.grid, style: 1 },
+          horzLines: { color: theme.grid, style: 1 },
+        },
+        rightPriceScale: {
+          borderColor: theme.grid,
+          minimumWidth: MIN_AXIS_W,
+          scaleMargins: { top: 0.08, bottom: 0.08 },
+          entireTextOnly: true,
+        },
+        leftPriceScale: { visible: false },
+        timeScale: {
+          borderColor: theme.grid, timeVisible: true, secondsVisible: false,
+          rightOffset: 6, fixLeftEdge: false, lockVisibleTimeRangeOnResize: true,
+        },
+        crosshair: {
+          mode: 1,
+          vertLine: { color: theme.text, width: 1, style: 2, labelBackgroundColor: theme.text },
+          horzLine: { color: theme.text, width: 1, style: 2, labelBackgroundColor: theme.text },
+        },
+        autoSize: false,
+      }, opts || {});
+    }
+
+    function fmt(v)   { return (v == null) ? '—' : Number(v).toFixed(2); }
+    function sgn(v)   { return v > 0 ? '+' : (v < 0 ? '−' : ''); }
+    function clsOf(v) { return v > 0 ? 'up' : (v < 0 ? 'down' : ''); }
+    function fmtVol(v) {
+      if (v == null) return '—';
+      if (v >= 1e8) return (v/1e8).toFixed(2) + 'B';
+      if (v >= 1e6) return (v/1e6).toFixed(2) + 'M';
+      if (v >= 1e3) return (v/1e3).toFixed(2) + 'K';
+      return String(Math.round(v));
+    }
+
+    function tooltipHTML(c, prev, macd, signals) {
+      var change = prev ? (c.close - prev.close) : 0;
+      var pct = prev && prev.close ? (change / prev.close * 100) : 0;
+      var ccls = clsOf(change);
+      var dt = new Date(c.time * 1000);
+      var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+      var timeStr = dt.getFullYear() + '-' + pad(dt.getMonth() + 1) + '-' + pad(dt.getDate())
+                  + ' ' + pad(dt.getHours()) + ':' + pad(dt.getMinutes());
+      var macdCls = (macd && macd.macd != null) ? clsOf(macd.macd) : '';
+      var diffCls = (macd && macd.diff != null) ? clsOf(macd.diff) : '';
+      var html = ''
+        + '<div class="tooltip__time">' + timeStr + '</div>'
+        + '<div class="tooltip__grid">'
+        + '<span class="tooltip__label">Open</span>'
+        + '<span class="tooltip__value">' + fmt(c.open) + '</span>'
+        + '<span class="tooltip__label">High</span>'
+        + '<span class="tooltip__value">' + fmt(c.high) + '</span>'
+        + '<span class="tooltip__label">Low</span>'
+        + '<span class="tooltip__value">' + fmt(c.low) + '</span>'
+        + '<span class="tooltip__label">Close</span>'
+        + '<span class="tooltip__value tooltip__value--' + ccls + '">' + fmt(c.close) + '</span>'
+        + '<span class="tooltip__label">Chg %</span>'
+        + '<span class="tooltip__value tooltip__value--' + ccls + '">' + sgn(change) + Math.abs(pct).toFixed(2) + '%</span>'
+        + (c.volume != null
+            ? '<span class="tooltip__label">Vol</span><span class="tooltip__value">' + fmtVol(c.volume) + '</span>'
+            : '')
+        + '</div>'
+        + (macd ?
+            '<div class="tooltip__section">MACD · 12/26/9</div>'
+            + '<div class="tooltip__grid">'
+            + '<span class="tooltip__label">DIFF</span>'
+            + '<span class="tooltip__value tooltip__value--' + diffCls + '">' + fmt(macd.diff) + '</span>'
+            + '<span class="tooltip__label">DEA</span>'
+            + '<span class="tooltip__value">' + fmt(macd.dea) + '</span>'
+            + '<span class="tooltip__label">MACD</span>'
+            + '<span class="tooltip__value tooltip__value--' + macdCls + '">' + fmt(macd.macd) + '</span>'
+            + '</div>'
+            : '');
+      if (signals && signals.length) {
+        html += '<div class="tooltip__section">SIGNALS · @CURRENT BAR</div>'
+              + '<div class="tooltip__grid">';
+        signals.forEach(function (s) {
+          var labelColor = 'var(--muted)';  // key 用淡色，让 value 突出
+          var dirCls = (s.direction === 'up') ? 'tooltip__value--up'
+                     : (s.direction === 'down') ? 'tooltip__value--down' : '';
+          html +=
+            '<span class="tooltip__label" style="color:' + labelColor + '">' + s.key + '</span>'
+            + '<span class="tooltip__value ' + dirCls + '">' + s.value + '</span>';
+        });
+        html += '</div>';
+      }
+      return html;
+    }
+
+    function placeTooltip(tooltipEl, mainEl, x, y) {
+      var paneRect = mainEl.getBoundingClientRect();
+      var contRect = mainEl.parentElement.getBoundingClientRect();
+      var w = tooltipEl.offsetWidth || 220, h = tooltipEl.offsetHeight || 200;
+      var pad = 16;
+      var px = x + 18;
+      var py = y + 18;
+      if (px + w > paneRect.width - pad) px = x - w - 18;
+      if (py + h > paneRect.height - pad) py = y - h - 18;
+      tooltipEl.style.left = (paneRect.left - contRect.left + Math.max(8, px)) + 'px';
+      tooltipEl.style.top  = (paneRect.top  - contRect.top  + Math.max(8, py)) + 'px';
+    }
+
+    function colorizeVol(rawCandles, rawVol, theme) {
+      // rawVol[i] 与 rawCandles[i] 严格对齐
+      return rawVol.map(function (b, i) {
+        var c = rawCandles[i];
+        var up = c && (Number(c.close) >= Number(c.open));
+        return { time: b.time, value: b.value, color: up ? theme.up : theme.down };
+      });
+    }
+    function colorizeMacd(rawMacd, theme) {
+      return rawMacd.map(function (b) {
+        var v = (b.value == null) ? 0 : Number(b.value);
+        return { time: b.time, value: b.value, color: v >= 0 ? theme.up : theme.down };
+      });
+    }
+
+    function buildFreqPane(freq, fi, theme) {
+      var pane = document.createElement("section");
+      pane.className = "freq-pane chart-stack";
+      pane.setAttribute("data-idx", String(fi));
+
+      var legendMain = (
+        '<span class="pane-meta__legend" data-series="sma5">'
+          + '<span class="pane-meta__swatch pane-meta__swatch--sma5"></span>SMA5</span>'
+        + '<span class="pane-meta__legend" data-series="sma20">'
+          + '<span class="pane-meta__swatch pane-meta__swatch--sma20"></span>SMA20</span>'
+        + '<span class="pane-meta__legend" data-series="fx">'
+          + '<span class="pane-meta__swatch pane-meta__swatch--fx"></span>FX (DASHED)</span>'
+        + '<span class="pane-meta__legend" data-series="bi">'
+          + '<span class="pane-meta__swatch pane-meta__swatch--bi"></span>BI (SOLID)</span>'
+      );
+      pane.innerHTML =
+        '<div class="pane-meta">'
+        + '<span>' + freq.freq_label + ' · ' + freq.main.candles.length + ' BARS</span>'
+        + '<span class="pane-meta__divider"></span>'
+        + legendMain
+        + '<span class="pane-meta__hint">CLICK LEGEND TO TOGGLE</span>'
+        + '</div>'
+        + '<div class="chart-stack">'
+        +   '<div class="row row-main" id="main-' + fi + '"><div class="row__label">PRICE · K + SMA + FX + BI</div></div>'
+        +   '<div class="row row-vol"  id="vol-'  + fi + '"><div class="row__label">VOLUME</div></div>'
+        +   '<div class="row row-sig"  id="sig-'  + fi + '"><div class="row__label">SIGNAL TIMELINE</div><div class="row__rowlabels" id="siglabels-' + fi + '"></div></div>'
+        +   '<div class="row row-macd" id="macd-' + fi + '"><div class="row__label">MACD · 12/26/9</div></div>'
+        +   '<div class="tooltip mono" id="tip-' + fi + '"></div>'
+        + '</div>';
+      root.appendChild(pane);
+
+      var mainEl = pane.querySelector('#main-' + fi);
+      var volEl  = pane.querySelector('#vol-'  + fi);
+      var macdEl = pane.querySelector('#macd-' + fi);
+      var tipEl  = pane.querySelector('#tip-'  + fi);
+
+      // 主图（隐藏 time 轴，最底 MACD 才显示）
+      var cMain = LightweightCharts.createChart(mainEl, commonOpts({
+        timeScale: { borderColor: theme.grid, timeVisible: true, secondsVisible: false, rightOffset: 6, visible: false },
+      }, theme));
+      applySize(cMain, mainEl);
+      var ks = cMain.addCandlestickSeries({
+        upColor: theme.up, downColor: theme.down,
+        borderUpColor: theme.up, borderDownColor: theme.down,
+        wickUpColor: theme.up, wickDownColor: theme.down,
+      });
+      ks.setData(freq.main.candles);
+
+      var smaCommon = { lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false };
+      var sma5 = (freq.main.sma5 && freq.main.sma5.length)
+        ? cMain.addLineSeries(Object.assign({ color: theme.sma5 }, smaCommon)) : null;
+      if (sma5) sma5.setData(freq.main.sma5);
+      var sma20 = (freq.main.sma20 && freq.main.sma20.length)
+        ? cMain.addLineSeries(Object.assign({ color: theme.sma20 }, smaCommon)) : null;
+      if (sma20) sma20.setData(freq.main.sma20);
+      var fx = (freq.main.fx_line && freq.main.fx_line.length)
+        ? cMain.addLineSeries(Object.assign({ color: theme.fx_dashed, lineStyle: dashedLineStyle }, smaCommon)) : null;
+      if (fx) fx.setData(freq.main.fx_line);
+      var bi = (freq.main.bi_line && freq.main.bi_line.length)
+        ? cMain.addLineSeries(Object.assign({ color: theme.bi, lineWidth: 2 }, { priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false })) : null;
+      if (bi) bi.setData(freq.main.bi_line);
+
+      // —— Signal markers（每个 key 一个 SignalSeries，合并到 candle series 上）——
+      var signalSeries = freq.signals || [];
+      var signalMarkersAll = [];      // 当前可见的 markers 数组
+      var seriesVisibleMap = {};      // key → bool
+      signalSeries.forEach(function (s) {
+        seriesVisibleMap[s.key] = true;
+        s.markers.forEach(function (m) {
+          // marker.direction 决定 position；marker.color 已是直接的红/绿/灰
+          var pos = (m.direction === 'down') ? 'belowBar' : 'aboveBar';
+          var entry = {
+            time: m.time,
+            position: pos,
+            color: m.color,
+            shape: s.shape || 'circle',
+            text: m.vnum != null ? String(m.vnum) : '',
+          };
+          entry.__key = s.key;
+          entry.__value = m.value;
+          entry.__direction = m.direction;
+          signalMarkersAll.push(entry);
+        });
+      });
+
+      // —— 持续态索引 signalLatestByCandle：每根 candle.time 都映射到该时刻所有 signal 的"当前生效值" ——
+      // 用途：tooltip hover 任意 candle 时显示该周期下所有 signal 的当前态，而非仅"变化态"
+      // 算法：candles 已按 time 升序，对每个 signal 维护指针线性扫描（O(N + M)）
+      var sortedMarkersByKey = {};
+      signalSeries.forEach(function (s) {
+        sortedMarkersByKey[s.key] = s.markers.slice().sort(function (a, b) { return a.time - b.time; });
+      });
+      var ptrByKey = {};
+      signalSeries.forEach(function (s) { ptrByKey[s.key] = 0; });
+      var signalLatestByCandle = {};
+      freq.main.candles.forEach(function (c) {
+        var snapshot = [];
+        signalSeries.forEach(function (s) {
+          var ms = sortedMarkersByKey[s.key];
+          // 推进 ptr 到 ms[ptr].time > c.time 的最小 ptr；ptr-1 就是"≤ c.time 的最近 marker"
+          while (ptrByKey[s.key] < ms.length && ms[ptrByKey[s.key]].time <= c.time) {
+            ptrByKey[s.key]++;
+          }
+          var i = ptrByKey[s.key] - 1;
+          if (i >= 0) {
+            var m = ms[i];
+            snapshot.push({ key: s.key, v1: m.v1, value: m.value, color: m.color, direction: m.direction });
+          }
+        });
+        signalLatestByCandle[c.time] = snapshot;
+      });
+      var highlightedKey = null;
+
+      function hexToRgba(hex, alpha) {
+        // hex format #RRGGBB
+        var r = parseInt(hex.slice(1, 3), 16);
+        var g = parseInt(hex.slice(3, 5), 16);
+        var b = parseInt(hex.slice(5, 7), 16);
+        return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+      }
+
+      function applySignalMarkers() {
+        var visible = signalMarkersAll
+          .filter(function (m) { return seriesVisibleMap[m.__key]; })
+          .sort(function (a, b) { return a.time - b.time; })
+          .map(function (m) {
+            var isHi = (highlightedKey !== null && m.__key === highlightedKey);
+            var isDim = (highlightedKey !== null && m.__key !== highlightedKey);
+            return {
+              time: m.time,
+              position: m.position,
+              color: isDim ? hexToRgba(m.color, 0.25) : m.color,
+              shape: m.shape,
+              text: m.text,
+              size: isHi ? 2 : 1,
+            };
+          });
+        ks.setMarkers(visible);
+      }
+      applySignalMarkers();
+
+      // VOL
+      var cVol = LightweightCharts.createChart(volEl, commonOpts({
+        timeScale: { borderColor: theme.grid, timeVisible: true, secondsVisible: false, rightOffset: 6, visible: false },
+      }, theme));
+      applySize(cVol, volEl);
+      var volSeries = cVol.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "right" });
+      volSeries.setData(colorizeVol(freq.main.candles, freq.volume.bars, theme));
+
+      // MACD
+      var cMacd = LightweightCharts.createChart(macdEl, commonOpts({
+        timeScale: { borderColor: theme.grid, timeVisible: true, secondsVisible: false, rightOffset: 6, visible: true },
+      }, theme));
+      applySize(cMacd, macdEl);
+      var diffSeries = cMacd.addLineSeries(Object.assign({ color: theme.macd_diff }, smaCommon));
+      diffSeries.setData(freq.macd.diff);
+      var deaSeries = cMacd.addLineSeries(Object.assign({ color: theme.macd_dea }, smaCommon));
+      deaSeries.setData(freq.macd.dea);
+      var macdHist = cMacd.addHistogramSeries({ priceScaleId: "right" });
+      macdHist.setData(colorizeMacd(freq.macd.macd, theme));
+      // 0 基准线（保留引用以便主题切换重建）
+      var zeroLineRef = diffSeries.createPriceLine({
+        price: 0, color: theme.text, lineWidth: 1, lineStyle: dashedLineStyle, axisLabelVisible: true, title: '0',
+      });
+
+      // —— SIGNAL TIMELINE pane ——
+      var sigEl = pane.querySelector('#sig-' + fi);
+      var sigLabelsEl = pane.querySelector('#siglabels-' + fi);
+      var cSig = LightweightCharts.createChart(sigEl, commonOpts({
+        timeScale: { borderColor: theme.grid, timeVisible: true, secondsVisible: false, rightOffset: 6, visible: false },
+        rightPriceScale: { visible: false },
+        leftPriceScale: { visible: false },
+        crosshair: { mode: 1 },
+        grid: { vertLines: { color: theme.grid, style: 1 }, horzLines: { visible: false } },
+      }, theme));
+      applySize(cSig, sigEl);
+
+      // 每行一个 Line series（用作时间锚 + marker 承载）
+      // 关键：line series 的数据点必须与主图 candles 等长，否则 logical index 范围
+      // 不一致会导致 setVisibleLogicalRange 被夹紧 + 反弹（参见 BUG 1 修复说明）
+      var sigRowSeriesByKey = {};
+      var sigRowMarkersAllByKey = {};   // key → markers 数组（独立于主图）
+      if (signalSeries.length > 0) {
+        // 行号倒序，让第 0 行画在最上
+        signalSeries.forEach(function (s, ri) {
+          var rowY = signalSeries.length - ri;  // 顶部 > 1，底部 1
+          var line = cSig.addLineSeries({
+            color: 'transparent',
+            lineVisible: false,
+            priceLineVisible: false,
+            lastValueVisible: false,
+            crosshairMarkerVisible: false,
+          });
+          // 每根 candle.time 一个数据点 → cSig 与 cMain logical index 数量一致
+          line.setData(freq.main.candles.map(function (cd) { return { time: cd.time, value: rowY }; }));
+          sigRowSeriesByKey[s.key] = line;
+          line._signalShape = s.shape || 'circle';
+          // 该行 markers：固定 position='aboveBar'（line series 本体不可见，仅显示 marker）
+          var rowMarkers = s.markers.map(function (m) {
+            return {
+              time: m.time,
+              position: 'aboveBar',
+              color: m.color,
+              shape: s.shape || 'circle',
+              text: m.vnum != null ? String(m.vnum) : '',
+            };
+          });
+          sigRowMarkersAllByKey[s.key] = rowMarkers;
+          // HTML 行标签
+          var lab = document.createElement('span');
+          lab.className = 'row__rowlabel';
+          lab.textContent = s.key;
+          sigLabelsEl.appendChild(lab);
+        });
+        cSig.timeScale().fitContent();
+      } else {
+        // 没 signal → 隐藏整行
+        sigEl.hidden = true;
+      }
+
+      function applyRowMarkers() {
+        Object.keys(sigRowSeriesByKey).forEach(function (key) {
+          var rowSer = sigRowSeriesByKey[key];
+          if (!seriesVisibleMap[key]) {
+            rowSer.setMarkers([]);
+            return;
+          }
+          var origMarkers = sigRowMarkersAllByKey[key] || [];
+          var mapped = origMarkers.map(function (m) {
+            var isHi = (highlightedKey !== null && key === highlightedKey);
+            var isDim = (highlightedKey !== null && key !== highlightedKey);
+            return {
+              time: m.time,
+              position: 'aboveBar',
+              color: isDim ? hexToRgba(m.color, 0.25) : m.color,
+              shape: rowSer._signalShape || 'circle',
+              text: m.text != null ? m.text : '',
+              size: isHi ? 2 : 1,
+            };
+          });
+          rowSer.setMarkers(mapped);
+        });
+      }
+      applyRowMarkers();
+
+      // —— 跨子图 时间轴 & 十字光标 联动 ——
+      var trio = [cMain, cVol, cMacd];
+      var trioEls = [mainEl, volEl, macdEl];
+      var primarySeries = [ks, volSeries, diffSeries];
+      if (signalSeries.length > 0) {
+        trio.push(cSig);
+        trioEls.push(sigEl);
+        // 用第一个行的 line series 作为 crosshair anchor
+        var firstRowKey = Object.keys(sigRowSeriesByKey)[0];
+        primarySeries.push(sigRowSeriesByKey[firstRowKey]);
+      }
+      var lockTime = false, lockCh = false;
+      // —— 跨子图同步统一通过 trio.forEach（含 cSig）：timescale 与 crosshair 同步
+      //    均由下面的 trio.forEach 完成。之前的"显式 cSig 双向同步"代码块已删除——
+      //    它与 trio.forEach 双重订阅，在 cSig 数据点不足时会引发 setVisibleLogicalRange
+      //    夹紧 + 反弹（BUG 1 根因）。sigRow line.setData 已扩展为与 candles 等长，
+      //    单条 trio.forEach 链路足够。
+      trio.forEach(function (src, i) {
+        src.timeScale().subscribeVisibleLogicalRangeChange(function (r) {
+          if (!r || lockTime) return;
+          lockTime = true;
+          for (var j = 0; j < trio.length; j++) {
+            if (j !== i) trio[j].timeScale().setVisibleLogicalRange(r);
+          }
+          lockTime = false;
+        });
+      });
+
+      // 建索引（tooltip 用）
+      var candleByTime = {}, macdByTime = {};
+      var orderedCandles = freq.main.candles;
+      var volByTime = {};
+      freq.volume.bars.forEach(function (h) { volByTime[h.time] = h.value; });
+      for (var i = 0; i < orderedCandles.length; i++) {
+        var c = orderedCandles[i];
+        candleByTime[c.time] = { idx: i, ohlc: c, volume: volByTime[c.time] };
+      }
+      freq.macd.diff.forEach(function (d, idx) {
+        macdByTime[d.time] = {
+          diff: d.value,
+          dea: freq.macd.dea[idx] && freq.macd.dea[idx].value,
+          macd: freq.macd.macd[idx] && freq.macd.macd[idx].value,
+        };
+      });
+
+      trio.forEach(function (src, i) {
+        src.subscribeCrosshairMove(function (param) {
+          // 记录最后一次 hover 的时间，用于跨 tab 联动
+          if (param && param.time != null) {
+            crosshairTime = param.time;
+          }
+          if (!lockCh && param && param.time) {
+            lockCh = true;
+            for (var j = 0; j < trio.length; j++) {
+              if (j !== i) {
+                try { trio[j].setCrosshairPosition(NaN, param.time, primarySeries[j]); }
+                catch (e) { /* ignore boundary errors */ }
+              }
+            }
+            lockCh = false;
+          }
+          // tooltip 任何子图上的光标移动都更新；位置吸附到主图坐标系
+          if (!param || !param.time) { tipEl.classList.remove('visible'); return; }
+          var entry = candleByTime[param.time];
+          if (!entry) { tipEl.classList.remove('visible'); return; }
+          var prev = entry.idx > 0 ? candleByTime[orderedCandles[entry.idx - 1].time] : null;
+          var c = Object.assign({}, entry.ohlc, { volume: entry.volume });
+          var m = macdByTime[param.time] || null;
+          // tooltip 使用"持续态"快照：每根 candle 上显示该周期所有 signal 的当前生效值
+          // 同时按 seriesVisibleMap 过滤已被 legend 点击关闭的 series
+          var sigs = (signalLatestByCandle[param.time] || []).filter(function (s) {
+            return seriesVisibleMap[s.key];
+          });
+          tipEl.innerHTML = tooltipHTML(c, prev ? prev.ohlc : null, m, sigs);
+          tipEl.classList.add('visible');
+          var px = param.point ? param.point.x : null;
+          var py = param.point ? param.point.y : null;
+          if (px == null || py == null || i !== 0) {
+            // 副图光标 → tooltip 固定在主图右上
+            var mainBR = mainEl.getBoundingClientRect();
+            placeTooltip(tipEl, mainEl, mainBR.width - 240, 16);
+          } else {
+            placeTooltip(tipEl, mainEl, px, py);
+          }
+
+          // 反向高亮：crosshair param.hoveredSeries 命中 sigRow series 时高亮对应 chip
+          var hovered = null;
+          if (param && param.hoveredSeries) {
+            Object.keys(sigRowSeriesByKey).forEach(function (k) {
+              if (sigRowSeriesByKey[k] === param.hoveredSeries) hovered = k;
+            });
+          }
+          // 仅在状态变化时更新（避免反复刷新 markers）
+          if (hovered !== highlightedKey) {
+            highlightedKey = hovered;
+            pane.querySelectorAll('.pane-meta__legend[data-signal-key]').forEach(function (el) {
+              el.classList.toggle('legend--hover', el.getAttribute('data-signal-key') === hovered);
+            });
+            applySignalMarkers();
+            applyRowMarkers();
+          }
+        });
+      });
+
+      var seriesRefs = {
+        candles: ks, sma5: sma5, sma20: sma20, fx: fx, bi: bi,
+        volume: volSeries, macdDiff: diffSeries, macdDea: deaSeries, macdHist: macdHist,
+        zeroLine: zeroLineRef, diffForZero: diffSeries,
+      };
+      var rawRefs = {
+        candles: freq.main.candles, volume: freq.volume.bars, macdHist: freq.macd.macd,
+      };
+
+      groups.push({
+        trio: trio, els: trioEls, paneEl: pane, tipEl: tipEl,
+        series: seriesRefs, raw: rawRefs,
+      });
+
+      // —— Signal 图例条目（动态注入到 pane-meta 末尾）——
+      if (signalSeries.length) {
+        var meta = pane.querySelector('.pane-meta');
+        var divider = document.createElement('span');
+        divider.className = 'pane-meta__divider';
+        meta.insertBefore(divider, meta.querySelector('.pane-meta__hint') || null);
+        signalSeries.forEach(function (s) {
+          var chip = document.createElement('span');
+          chip.className = 'pane-meta__legend';
+          chip.setAttribute('data-signal-key', s.key);
+          // shape icon（用 Unicode 表示 shape）+ key（数字编号仍保留在 marker.text 上，legend 不冗余展示）
+          var shapeIcon = {
+            circle: '●', square: '■', arrowUp: '▲', arrowDown: '▼',
+          }[s.shape] || '●';
+          chip.innerHTML =
+            '<span class="pane-meta__swatch" style="color:' + s.color + ';font-size:11px;line-height:1">' + shapeIcon + '</span>'
+            + ' ' + s.key;
+          chip.addEventListener('click', function () {
+            seriesVisibleMap[s.key] = !seriesVisibleMap[s.key];
+            chip.classList.toggle('legend--off', !seriesVisibleMap[s.key]);
+            applySignalMarkers();
+            applyRowMarkers();
+          });
+          chip.addEventListener('mouseenter', function () {
+            highlightedKey = s.key;
+            chip.classList.add('legend--hover');
+            applySignalMarkers();
+            applyRowMarkers();
+          });
+          chip.addEventListener('mouseleave', function () {
+            highlightedKey = null;
+            chip.classList.remove('legend--hover');
+            applySignalMarkers();
+            applyRowMarkers();
+          });
+          meta.insertBefore(chip, meta.querySelector('.pane-meta__hint') || null);
+        });
+      }
+
+      // 图例点击 → toggle series 可见
+      pane.querySelectorAll('.pane-meta__legend').forEach(function (item) {
+        item.addEventListener('click', function () {
+          var key = item.getAttribute('data-series');
+          var s = seriesRefs[key];
+          if (!s) return;
+          var off = item.classList.toggle('legend--off');
+          s.applyOptions({ visible: !off });
+        });
+      });
+    }
+
+    // —— 三子图右价格轴 后置等宽 → 竖线严格对齐 ——
+    function alignAxes() {
+      var maxW = MIN_AXIS_W;
+      groups.forEach(function (g) {
+        g.trio.forEach(function (c) {
+          try {
+            var w = c.priceScale('right').width();
+            if (w > maxW) maxW = w;
+          } catch (e) { /* old API fallback */ }
+        });
+      });
+      groups.forEach(function (g) {
+        g.trio.forEach(function (c) {
+          c.priceScale('right').applyOptions({ minimumWidth: maxW });
+        });
+      });
+    }
+
+    // —— 主题切换 ——
+    function applyTheme(name) {
+      if (!THEMES[name]) return;
+      currentThemeName = name;
+      currentTheme = THEMES[name];
+      document.documentElement.setAttribute('data-theme', name);
+      document.getElementById('theme-toggle-label').textContent = name.toUpperCase();
+      groups.forEach(function (g) {
+        g.trio.forEach(function (c) {
+          c.applyOptions({
+            layout: { background: { type: 'solid', color: currentTheme.background }, textColor: currentTheme.text },
+            grid:   { vertLines: { color: currentTheme.grid }, horzLines: { color: currentTheme.grid } },
+            rightPriceScale: { borderColor: currentTheme.grid },
+            timeScale: { borderColor: currentTheme.grid },
+            crosshair: {
+              vertLine: { color: currentTheme.text, labelBackgroundColor: currentTheme.text },
+              horzLine: { color: currentTheme.text, labelBackgroundColor: currentTheme.text },
+            },
+          });
+        });
+        g.series.candles.applyOptions({
+          upColor: currentTheme.up, downColor: currentTheme.down,
+          borderUpColor: currentTheme.up, borderDownColor: currentTheme.down,
+          wickUpColor: currentTheme.up, wickDownColor: currentTheme.down,
+        });
+        if (g.series.sma5)  g.series.sma5.applyOptions({ color: currentTheme.sma5 });
+        if (g.series.sma20) g.series.sma20.applyOptions({ color: currentTheme.sma20 });
+        if (g.series.fx)    g.series.fx.applyOptions({ color: currentTheme.fx_dashed });
+        if (g.series.bi)    g.series.bi.applyOptions({ color: currentTheme.bi });
+        g.series.macdDiff.applyOptions({ color: currentTheme.macd_diff });
+        g.series.macdDea.applyOptions({ color: currentTheme.macd_dea });
+        // 直方图 per-bar 颜色 → 重新染色
+        g.series.volume.setData(colorizeVol(g.raw.candles, g.raw.volume, currentTheme));
+        g.series.macdHist.setData(colorizeMacd(g.raw.macdHist, currentTheme));
+        // 0 基准线：旧的删除 + 重建（lightweight-charts v4 不支持 applyOptions on priceLine）
+        try { g.series.diffForZero.removePriceLine(g.series.zeroLine); } catch (e) { /* noop */ }
+        g.series.zeroLine = g.series.diffForZero.createPriceLine({
+          price: 0, color: currentTheme.text, lineWidth: 1, lineStyle: dashedLineStyle, axisLabelVisible: true, title: '0',
+        });
+      });
+      setTimeout(alignAxes, 0);
+    }
+
+    // 初始化：所有 panes 用 currentTheme 构建
+    PAYLOAD.panes.forEach(function (f, i) { buildFreqPane(f, i, currentTheme); });
+
+    function resizePane(idx) {
+      var g = groups[idx];
+      if (!g) return;
+      g.trio.forEach(function (chart, i) { applySize(chart, g.els[i]); });
+      setTimeout(alignAxes, 0);
+    }
+    function applyCrosshairToTab(idx) {
+      if (crosshairTime == null) return;
+      var g = groups[idx];
+      if (!g) return;
+      var candles = (PAYLOAD.panes[idx].main.candles) || [];
+      var nearest = null;
+      for (var i = candles.length - 1; i >= 0; i--) {
+        if (candles[i].time <= crosshairTime) {
+          nearest = candles[i].time;
+          break;
+        }
+      }
+      if (nearest == null) return;
+      // 三个主图（main / vol / macd）的 primary series
+      var primaries = [g.series.candles, g.series.volume, g.series.macdDiff];
+      g.trio.forEach(function (chart, ti) {
+        if (primaries[ti]) {
+          try { chart.setCrosshairPosition(NaN, nearest, primaries[ti]); } catch (e) { /* ignore */ }
+        }
+      });
+    }
+    function resizeAll() { for (var i = 0; i < groups.length; i++) resizePane(i); }
+    window.addEventListener("resize", resizeAll);
+
+    // Tab 栏
+    if (PAYLOAD.panes.length <= 1) {
+      tabsBar.style.display = "none";
+    } else {
+      PAYLOAD.panes.forEach(function (freq, idx) {
+        var btn = document.createElement("button");
+        btn.className = "tab" + (idx === 0 ? " active" : "");
+        btn.setAttribute("data-idx", String(idx));
+        btn.innerHTML = '<span class="tab__dot"></span>' + freq.freq_label;
+        btn.addEventListener("click", function () {
+          for (var i = 0; i < groups.length; i++) {
+            var active = (i === idx);
+            groups[i].paneEl.hidden = !active;
+            tabsBar.children[i].classList.toggle("active", active);
+          }
+          setTimeout(function () {
+            resizePane(idx);
+            applyCrosshairToTab(idx);
+          }, 0);
+        });
+        tabsBar.appendChild(btn);
+      });
+      for (var i = 1; i < groups.length; i++) groups[i].paneEl.hidden = true;
+    }
+
+    // 主题 toggle
+    document.documentElement.setAttribute('data-theme', currentThemeName);
+    document.getElementById('theme-toggle-label').textContent = currentThemeName.toUpperCase();
+    document.getElementById('theme-toggle').addEventListener('click', function () {
+      applyTheme(currentThemeName === 'light' ? 'dark' : 'light');
+    });
+
+    // 首屏对齐
+    setTimeout(function () { resizePane(0); alignAxes(); }, 0);
+  })();
+  </script>
+</body>
+</html>
