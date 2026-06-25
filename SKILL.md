@@ -2145,323 +2145,40 @@ plot_czsc(c, output="html", path="/tmp/czsc.html")
 
 ## 模块参考 (Module Reference)
 
-> v5.2.2: 按 `czsc_cli` 5 个子模块组织文档。每个章节包含: 模块路径 / exports 清单 / 核心 API 定义 / 典型用法 / 测试覆盖 / 已知坑。
+> v5.2.2 拆分: 详细文档已迁到 `references/<module>.md` (5 个独立 chapter). 本文保留**索引 + 速查**, 用户查阅具体 API 时跳 references/.
 
-### 模块汇总
+### 模块索引 (v5.2.3 真拆后)
 
-| 模块 | 文件 | 行数 | exports | 功能领域 | pytest 测试 | 测试数 |
+| 模块 | 文件 | 行数 | exports | 功能领域 | pytest 测试 | 详细文档 |
 |---|---|---|---|---|---|---|
-| data | `czsc_cli/data.py` | 65 | 15 | tushare 拉数 + 筛选 + K 线 cache | `tests/test_data.py` | 13 |
-| preset | `czsc_cli/preset.py` | 53 | 14 | 预设策略管理 (8 子命令 + 5 helper) | `tests/test_preset.py` | 11 |
-| batch | `czsc_cli/batch.py` | 54 | 12 | 批量扫描 + dry-run + retry + Slack | `tests/test_batch.py` | 14 |
-| scanner | `czsc_cli/scanner.py` | 47 | 6 | 多股扫描 + 评分 + 排名 | `tests/test_scanner.py` | 13 |
-| signals | `czsc_cli/signals.py` | 56 | 12 | 单股信号 + 多周期 + 回测 + 止盈止损 | `tests/test_signals.py` | 14 |
-| **总** | | **335** | **59** | **(主文件 `scripts/czsc_signals.py` 2954 行不动)** | **6 文件 750 行** | **87** |
+| data | `czsc_cli/data.py` | 510 | 16 | tushare 拉数 + 筛选 + K 线 cache + SIGNAL_WEIGHTS | `tests/test_data.py` (17) | [`references/data.md`](references/data.md) |
+| preset | `czsc_cli/preset.py` | 515 | 15 | 预设策略管理 (9 cmd + 4 helper) | `tests/test_preset.py` (13) | [`references/preset.md`](references/preset.md) |
+| batch | `czsc_cli/batch.py` | 560 | 10 | 批量扫描 + dry-run + retry + Slack | `tests/test_batch.py` (16) | [`references/batch.md`](references/batch.md) |
+| scanner | `czsc_cli/scanner.py` | 595 | 6 | 多股扫描 + 评分 + 排名 | `tests/test_scanner.py` (17) | [`references/scanner.md`](references/scanner.md) |
+| signals | `czsc_cli/signals.py` | 716 | 16 | 单股信号 + 多周期 + 回测 + 止盈止损 + cmd_list | `tests/test_signals.py` (19) | [`references/signals.md`](references/signals.md) |
+| **总** | 5 文件 | **2896** | **63** | (主文件 2959→392 行, 收尾成纯 shim) | **100 pass** (6 文件) | + [`references/changelog.md`](references/changelog.md) |
 
-所有模块通过 `__getattr__` lazy 转发到 `scripts/czsc_signals.py` 的原始实现 (**单点真理**, 零代码重复)。
+**架构原则 (v5.2.3 真拆后)**:
+- 5 个模块**全部真拆**, 无 `_EXPORTS`/`_imported`/`__getattr__` (v5.1 lazy load 已废)
+- 函数 is-equal 关系 100% 成立 (Python 函数 import 保留 identity)
+- 模块级 dict/list (ALL_SIGNALS, BUILTIN_PRESETS) 跨域共享, mutable object 共享
+- 模块级 Path/tuple (PRESET_DIR, SIGNAL_WEIGHTS) 用 from-import 创建新绑定, 验证 `==` 而非 `is`
+- `BUILTIN_PRESETS` 留 czsc_signals (scanner._apply_preset 函数内 import 避免循环)
+- 跨域依赖图: `batch → {scanner, preset, data}` / `scanner → {signals, data}` / `signals → data`
 
----
-
-### data 模块
-
-**路径**: `skills/czsc-trading/czsc_cli/data.py` (65 行)
-
-**exports** (15 项):
-
-| 名字 | 类型 | 用途 | 依赖外部 API |
-|---|---|---|---|
-| `_fetch_st_names_via_tushare` | 函数 | 拉取全市场股票名 (用于 ST 过滤) | ✅ tushare |
-| `_fetch_industry_via_tushare` | 函数 | 拉取行业分类 (用于行业筛选) | ✅ tushare |
-| `_fetch_bak_basic_via_tushare` | 函数 | 拉取备用基础数据 (PE/PB/市值) | ✅ tushare |
-| `_filter_by_industry_pe` | 函数 | 按行业 + PE 过滤股池 | ❌ (可选) |
-| `_filter_by_market_cap_turnover` | 函数 | 按市值 + 换手率过滤 | ❌ (可选) |
-| `_is_st_or_delisted` | 函数 | 检查股票名是否 ST/退市 | ❌ **纯函数** |
-| `_filter_stocks` | 函数 | 综合过滤 (tushare + ST 检查) | ✅ tushare |
-| `_load_weights` | 函数 | 从 YAML 加载权重配置 | ⚠️ 文件 IO |
-| `fetch_klines_for_signals` | 函数 | 拉取 K 线数据 (自动 clamp 1000 天) | ✅ 腾讯 ifzq API |
-| `_fetch_klines_uncached` | 函数 | 无缓存拉取 K 线 | ✅ 腾讯 ifzq API |
-| `fetch_klines_with_cache` | 函数 | 带 parquet 缓存的 K 线拉取 | ✅ 腾讯 ifzq API + 磁盘 |
-| `_cache_path` | 函数 | parquet 缓存路径生成 | ❌ **纯函数** |
-| `_load_cache` | 函数 | 从磁盘加载 parquet 缓存 | ⚠️ 磁盘读取 |
-| `_save_cache` | 函数 | 保存 K 线数据到 parquet | ⚠️ 磁盘写入 |
-| `PRESET_DIR` | `Path` | 全局预设存储路径 (环境变量 `CZSC_PRESET_DIR`) | — |
-
-**纯函数** (适合单测, 不依赖外部 API):
-- `_is_st_or_delisted(name: str) → bool` — 大小写敏感, 识别 `ST`/`*ST`/`退`
-- `_cache_path(ts_code: str) → Path` — 格式 `~/.czsc-cache/<ts_code>.parquet`
-
-**典型用法**:
-```python
-from czsc_cli.data import _is_st_or_delisted, fetch_klines_with_cache
-
-# ST check
-name = tushare_name_map.get("000001.SZ", "")
-if _is_st_or_delisted(name):
-    print(f"⚠️ ST 或退市: {name}")
-
-# 带缓存的 K 线拉取 (高效)
-df = fetch_klines_with_cache("600519.SH", days=365, freq="日线")
-```
-
-**测试覆盖** (v5.2.1, `tests/test_data.py`, 15 tests):
-- ✅ 模块结构: 15 exports, 核心 API 都在
-- ✅ lazy `__getattr__` 转发 → 函数是原函数 (`is`)
-- ✅ `_is_st_or_delisted` 全覆盖 (正常/ST/*ST/退市/空/None)
-- ✅ `_cache_path` 格式验证 (parquet 后缀, 不同 code 不同路径)
-- ✅ `PRESET_DIR` 跨模块共享
-- ✅ 未知属性 raise `AttributeError`
-
-**已知坑**:
-- `fetch_klines_for_signals` 自动 clamp 到 1000 天 (腾讯 API 限制), 超过返回空
-- tushare 调用建议缓存在 `~/.czsc-cache/` 避免高频请求
-- K 线 parquet 缓存不自动过期 — 需手动 `rm -rf ~/.czsc-cache/` 清
+**变更摘要**: 见 [`references/changelog.md`](references/changelog.md).
 
 ---
 
-### preset 模块
+## v5.2 变更摘要 (索引)
 
-**路径**: `skills/czsc-trading/czsc_cli/preset.py` (53 行)
-
-**exports** (14 项):
-
-| 名字 | 用途 |
-|---|---|
-| `_save_user_preset(name, args)` | 保存自定义 preset 到 `~/.czsc-presets/<name>.json` |
-| `_load_user_preset(path)` | 从 JSON 文件加载 (返回 dict) |
-| `_apply_user_preset(args)` | 合并用户预设到 args (用户显式 flag 不覆盖) |
-| `_override_preset_dir(args)` | 改全局 PRESET_DIR (--preset-dir flag) |
-| `PRESET_DIR` | 全局预设存储路径 |
-| `cmd_preset_save` | `preset save` 子命令 |
-| `cmd_preset_list` | `preset list` 子命令 |
-| `cmd_preset_show` | `preset show` 子命令 |
-| `cmd_preset_delete` | `preset delete` 子命令 |
-| `cmd_preset_export` | `preset export` 子命令 |
-| `cmd_preset_import` | `preset import` 子命令 |
-| `cmd_preset_diff` | `preset diff` 子命令 |
-| `cmd_preset_merge` | `preset merge` 子命令 |
-| `cmd_preset_validate` | `preset validate` 子命令 |
-
-**典型用法**:
-```bash
-# CLI
-python3 -m czsc_cli preset list                     # 列出所有预设
-python3 -m czsc_cli preset show my_bank             # 查看预设详情
-python3 -m czsc_cli preset delete my_bank           # 删除
-python3 -m czsc_cli preset validate my_bank         # 验证
-python3 -m czsc_cli preset export my_bank ./out.json # 导出
-python3 -m czsc_cli preset import friend_preset.json # 导入
-```
-
-**存储位置**: `~/.czsc-presets/<name>.json` (可被环境变量 `CZSC_PRESET_DIR` 覆盖)
-
-**测试覆盖** (v5.2.1, `tests/test_preset.py`, 11 tests):
-- ✅ 模块结构: 14 exports, 全部 8 子命令
-- ✅ lazy 转发: cmd_preset_save/list/validate is 原函数
-- ✅ PRESET_DIR 类型 + 跨模块共享
-- ✅ `_override_preset_dir` 函数存在
-
-**已知坑**:
-- `PRESET_DIR` 在模块 load 时 fix — 改环境变量后需重启进程
-- 预设文件是普通 JSON, 手动编辑可能破坏格式 → 用 `validate` 子命令
-- v3.9 设计的 `--preset value` 让非显式 flag 被覆盖, 但**用户显式传的 flag (非 None) 不覆盖**
-
----
-
-### batch 模块
-
-**路径**: `skills/czsc-trading/czsc_cli/batch.py` (54 行)
-
-**exports** (12 项):
-
-| 名字 | 用途 | 依赖 |
+| 子版本 | 内容 | 详情 |
 |---|---|---|
-| `_push_to_slack(...)` | 发送结果到 Slack webhook | ✅ 网络 |
-| `_load_batch_config(path)` | 加载 YAML 批量配置 | ⚠️ 文件 |
-| `_batch_dry_run(...)` | dry-run 模式: 只打印不执行 | ❌ |
-| `_merge_scan_args_for_dry_run(...)` | 合并 config + CLI 参数 | ❌ |
-| `_filter_bak_basic_dict(...)` | 内存级过滤 (PE/PB/市值/换手) | ❌ |
-| `_print_filter_summary(...)` | 打印过滤统计 | ❌ |
-| `_fetch_basic_cached(...)` | 带缓存的 tushare 基础数据 | ✅ tushare |
-| `_load_watchlist_safe(...)` | 安全加载 watchlist 文件 | ⚠️ 文件 |
-| `_run_batch(...)` | 执行批量扫描 (含 retry + error handling) | ✅ tushare |
-| `_execute_one_run(...)` | 单次扫描执行 (batch 循环体) | ✅ tushare |
-| `_apply_preset(args)` | 应用内置预设 (v3.9) | ❌ **纯逻辑** |
-| `BUILTIN_PRESETS` | `dict` — 4 个内置预设配置 | — |
+| v5.2.0 | BUILTIN_PRESETS 哑炮修复 | `scripts/czsc_signals.py` 模块级 |
+| v5.2.1 | pytest 单元测试 (88 pass baseline) | `tests/` 6 文件 |
+| v5.2.2 | SKILL.md 拆 5 chapter + changelog | `references/` 6 文件 |
+| v5.2.3 | 真拆函数实现 (替换 lazy load) | `czsc_cli/*.py` 2896 行 |
 
-**内置预设 `BUILTIN_PRESETS`** (v5.2.0 提到模块级):
-
-| 预设名 | 策略 | 核心参数 | 适合场景 |
-|---|---|---|---|
-| `value` | 价值投资 | PE≤15 / PB≤2 / 市值≥1000亿 / 综合分降序 | 低估蓝筹 |
-| `bank` | 银行专场 | 行业=银行 / PE≤15 / PB≤1.5 / 市值≥2000亿 | 银行股筛选 |
-| `momentum` | 动量策略 | 换手≥1% / 市值≥500亿 / 综合分降序 / 显示统计 | 趋势跟踪 |
-| `bargain` | 抄底策略 | PE≤10 / 市值≥200亿 / 换手率升序 | 低估值捡漏 |
-
-> v5.2.0 修复: `BUILTIN_PRESETS` 从 `_apply_preset()` 函数内 local dict 提到模块级, 解决 `from czsc_cli.batch import _apply_preset, BUILTIN_PRESETS` 全挂的 bug。
-
-**典型用法**:
-```bash
-# 批量扫描 (使用预设)
-python3 -m czsc_cli scan --preset value --watchlist wl.txt
-
-# dry-run 模式
-python3 -m czsc_cli batch --config batch.yml --dry-run
-```
-
-**测试覆盖** (v5.2.1, `tests/test_batch.py`, 16 tests):
-- ✅ 模块结构: 12 exports, 全部 helper 存在
-- ✅ lazy 转发: `_run_batch`/`_push_to_slack`/`_apply_preset` is 原函数
-- ✅ `BUILTIN_PRESETS` 模块级 (v5.2.0 invariant)
-- ✅ 内置预设 4 个 keys + 每个预设的配置完整性
-- ✅ `_apply_preset` 行为: no-op / value 应用 / 用户值不覆盖 / 未知 preset exit(1)
-
-**已知坑**:
-- 批量模式依赖 YAML 配置文件, 不传 `--config` 则走默认路径
-- Slack webhook 需要环境变量或配置指定
-- Batch 重试策略: 默认 3 次, 间隔 5s (可配置)
-- `_filter_bak_basic_dict` 是内存过滤 — 不触发 tushare, 但依赖数据已在 dict 里
-
----
-
-### scanner 模块
-
-**路径**: `skills/czsc-trading/czsc_cli/scanner.py` (47 行)
-
-**exports** (6 项):
-
-| 名字 | 用途 | 依赖 |
-|---|---|---|
-| `_parse_stocks(stocks_arg, watchlist)` | 解析股票列表 (逗号/文件/去重) | ❌ **纯函数** |
-| `_score_one_stock(ts_code, weight)` | 对单只股票评分 | ✅ tushare + 腾讯 |
-| `_sort_detail(detail, sort_by, reverse)` | 排序扫描结果 | ❌ **纯函数** |
-| `run_scan_signals(args)` | 执行多股扫描 (主入口) | ✅ tushare + 腾讯 |
-| `cmd_scan(args)` | `scan` 子命令 handler | ✅ tushare + 腾讯 |
-| `cmd_list(args)` | `list` 子命令 handler (列出可用信号) | ❌ |
-
-**评分排序逻辑** (`_sort_detail`):
-- `composite` — 按信号加权综合分 (默认, 降序)
-- `total_mv` — 按总市值降序
-- `turnover_rate` — 按换手率降序
-- `last_close` — 按最新收盘价降序
-- `ts_code` — 按股票代码字母序 (stable, 便于对比)
-- `任意 alias` — 按该信号 score 降序 (向后兼容 v3.5)
-
-**纯函数** (适合单测):
-- `_parse_stocks(stocks_arg: str, watchlist: str) → list` — 逗号分隔 / 文件行 / 去重 / strip
-- `_sort_detail(detail: dict, sort_by: str, reverse: bool) → list` — 按指定 key 排序
-
-**典型用法**:
-```bash
-# 多股扫描 + 综合排名 (top 5)
-python3 -m czsc_cli scan --watchlist wl.txt --top 5
-
-# 指定股票 + 按市值排序
-python3 -m czsc_cli scan --stocks 600519.SH,000001.SZ --sort-by total_mv
-
-# 列出可选信号
-python3 -m czsc_cli list
-```
-
-**测试覆盖** (v5.2.1, `tests/test_scanner.py`, 15 tests):
-- ✅ 模块结构: 6 exports, 核心 API 都在
-- ✅ lazy 转发: cmd_scan/run_scan_signals/_sort_detail is 原函数
-- ✅ `_parse_stocks`: 逗号 / strip / watchlist 回退 / 去重
-- ✅ `_sort_detail`: composite 升序/降序 / per_signal alias 排序 / 空 detail / 缺失 key 默认 0
-
-**已知坑**:
-- `_score_one_stock` 是扫描核心 — 最重操作, 每次调用都触发网络请求 (tushare + 腾讯)
-- `_sort_detail` reverse 语义: `reverse=True` = 降序 (大在前), `reverse=False` = 升序 (小在前)
-  - 用户 `--reverse` flag 在调用前已做语义取反 (args.reverse=False → 降序, 用户视角的默认行为)
-
----
-
-### signals 模块
-
-**路径**: `skills/czsc-trading/czsc_cli/signals.py` (56 行)
-
-**exports** (12 项):
-
-| 名字 | 用途 | 依赖 |
-|---|---|---|
-| `run_signals(args)` | 单股信号检测 (主入口) | ✅ tushare + 腾讯 |
-| `cmd_signals(args)` | `signals` 子命令 handler | ✅ tushare + 腾讯 |
-| `cmd_events(args)` | `events` 子命令 handler (只输出触发事件) | ✅ tushare + 腾讯 |
-| `cmd_summary(args)` | `summary` 子命令 handler (信号摘要) | ✅ tushare + 腾讯 |
-| `resample_to_freq(df, freq)` | K 线重采样 (日→周/月) | ❌ **纯 pandas** |
-| `run_multi_freq_signals(args)` | 多周期信号扫描 (日/周/月) | ✅ tushare + 腾讯 |
-| `cmd_multi_freq(args)` | `multi` 子命令 handler | ✅ tushare + 腾讯 |
-| `build_weight_with_stops(...)` | 构建带止盈止损的权重信号配置文件 | ❌ |
-| `run_weight_backtest(...)` | 执行权重回测 | ✅ tushare + 腾讯 |
-| `cmd_backtest(args)` | `backtest` 子命令 handler | ✅ tushare + 腾讯 |
-| `SIGNAL_GROUPS` | `dict` — 信号分组配置 (6 组) | — |
-| `CORE_BS_SIGNALS` | `list[dict]` — 4 个核心缠论买卖点 | — |
-
-**核心缠论买卖点** (`CORE_BS_SIGNALS`, 4 个):
-
-| 名字 | alias | 描述 |
-|---|---|---|
-| `cxt_first_buy_V221126` | 一买 | 下跌趋势底背驰后的转折点 |
-| `cxt_first_sell_V221126` | 一卖 | 上涨趋势顶背驰后的转折点 |
-| `cxt_second_bs_V240524` | 二买卖 | 一买/一卖后回调不破前低/前高 |
-| `cxt_third_buy_V230228` | 三买 | 突破中枢后回踩不进中枢 |
-
-**信号分组** (`SIGNAL_GROUPS`, 6 组):
-
-| 组名 | 描述 | 包含信号 |
-|---|---|---|
-| `all_long` | 所有买入类信号 | 一买 + 二买 + 三买 + MACD 一买 + MACD 二买 + 笔翼二买 |
-| `all_short` | 所有卖出类信号 | 一卖 + 二卖 + 三卖 + MACD 一卖 |
-| `bs_core` | 核心缠论买卖点 | 一买 + 一卖 + 二买卖 + 三买 |
-| `bs1` | 第一类买卖点 | 一买 + 一卖 |
-| `momentum` | 动量类信号 | (扩展信号) |
-| `reversal` | 反转类信号 | (扩展信号) |
-
-**典型用法**:
-```bash
-# 单股信号检测
-python3 -m czsc_cli signals --ts-code 600519.SH --days 500
-
-# 只输出触发事件
-events --ts-code 600519.SH --days 500
-
-# 信号摘要 (触发次数 + 最近日期)
-summary --ts-code 600519.SH --days 500
-
-# 多周期信号扫描 (日/周/月)
-multi --ts-code 600519.SH --days 500
-
-# 回测 (信号触发→次日买入→5 日后卖出)
-backtest --ts-code 600519.SH --signal all --hold-days 5 --days 1000
-
-# 止盈止损回测
-backtest --ts-code 600519.SH --stop-loss 0.05 --take-profit 0.1
-```
-
-**测试覆盖** (v5.2.1, `tests/test_signals.py`, 17 tests):
-- ✅ 模块结构: 12 exports, 核心信号 API 都在
-- ✅ lazy 转发: run_signals/run_multi_freq_signals/run_weight_backtest is 原函数
-- ✅ `CORE_BS_SIGNALS` 跨模块共享 (list 对象同 id)
-- ✅ CORE_BS_SIGNALS: 4 个信号, 格式完整性 (name/alias), 别名包含一买/一卖/二买卖/三买
-- ✅ SIGNAL_GROUPS: dict 类型, 至少 6 组, 每组有 `description` + `signals` (list, 非空)
-- ✅ `_filter_by_industry_pe` (无 filter 时全保留, pe_max 过滤时不崩)
-- ⏳ `resample_to_freq` (空 df 跳过 — 需要具体列)
-
-**已知坑**:
-- 腾讯 API 单次最多 ~641 根 K 线, 超过 1000 天返回空 → `fetch_klines_for_signals` 自动 clamp
-- 信号计算是 CPU 密集 (Pandas + numpy), 扫描多只时建议 `--top 5` 限制
-- `SIGNAL_GROUPS` 里的 `momentum` / `reversal` 组信号可能为空 (扩展占位) — 已在 SKILL.md v4.9 记录
-- 回测是简化版: 信号触发→次日开盘买入→N 日后卖出, 不包含滑点/手续费
-
----
-
-## v5.2 变更摘要
-
-| 子版本 | 内容 | 文件 |
-|---|---|---|
-| v5.2.0 | BUILTIN_PRESETS 哑炮修复 (提到模块级) | `scripts/czsc_signals.py` |
-| v5.2.1 | pytest 单元测试 (87 pass + 1 skip = 88 cases, 0 fail) | `tests/` (7 文件 750 行: data 15 + preset 11 + batch 16 + scanner 15 + signals 17 + integration 14) |
-| v5.2.2 | SKILL.md 按模块拆分 (本文) | `SKILL.md` |
-| v5.2.3 | 真拆函数实现 (替换 lazy load) | `czsc_cli/*.py` |
-
+详细变更见 [`references/changelog.md`](references/changelog.md).
 
 🦐 Generated by 小虾 for 晓冬
