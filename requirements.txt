@@ -1,0 +1,12 @@
+# czsc-trading 依赖清单
+# v5.3.3: 用于 GitHub Actions CI 缓存命中 (无此文件时 cache: pip 报错)
+#
+# 注: OpenClaw runtime 通过 runtime.conf 声明依赖,
+# requirements.txt 仅用于 CI actions/setup-python cache 加速.
+# 两个源保持一致: CI 装 requirements.txt, runtime 装 runtime.conf 列的.
+
+czsc==1.0.0rc8
+akshare==1.18.64
+plotly==6.8.0
+pandas>=2.0
+pytest>=7.0

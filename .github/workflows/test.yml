@@ -42,18 +42,13 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          # 注: 不开 cache: pip, 因为 v5.2 之后没 requirements.txt/pyproject.toml
-          #      (skill 通过 runtime.conf 声明依赖). v5.3.3 候选: 加 requirements.txt 加速 CI.
+          cache: pip
+          cache-dependency-path: requirements.txt
 
-      - name: Install dependencies (pypi 官方源)
+      - name: Install dependencies (通过 requirements.txt)
         run: |
           python -m pip install --upgrade pip
-          python -m pip install \
-            "czsc==1.0.0rc8" \
-            akshare==1.18.64 \
-            plotly==6.8.0 \
-            pandas \
-            pytest
+          python -m pip install -r requirements.txt
 
       - name: Verify runtime dependencies
         run: |
