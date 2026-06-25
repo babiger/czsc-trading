@@ -311,11 +311,51 @@ def _load_weights(weights_file: str) -> dict:
 def fetch_klines_for_signals(ts_code: str, days: int = 500, use_cache: bool = True):
     """拉日 K 线, 返回 czsc 标准 bars 列表 (不是 DataFrame)
 
-    优先 tushare (有成交额), fallback 腾讯 ifzq (无成交额但免费)
-    use_cache=True 时走本地 parquet 缓存 (避免重复拉)
+    优先级 (v5.4+):
+    1. 本地 SQLite DB (~/.openclaw/data/czsc_market.db) — 最快, 无网络
+    2. 本地 parquet 缓存 (use_cache=True) — 快, 无网络
+    3. tushare (有成交额) — 慢, 限流
+    4. 腾讯 ifzq (无成交额) — 慢, 免费
     """
+    from datetime import datetime, timedelta
+    from . import db_reader
+
+    # === 0. 优先本地 DB (v5.4+) ===
+    if db_reader.is_db_available():
+        try:
+            end_str = datetime.now().strftime("%Y%m%d")
+            start_dt = datetime.now() - timedelta(days=int(days * 1.5))
+            start_str = start_dt.strftime("%Y%m%d")
+            rows = db_reader.get_daily_bars(ts_code, start_str, end_str, adj="qfq")
+            if rows and len(rows) >= days * 0.8:  # 80% 数据量才信
+                import pandas as pd
+                from czsc import format_standard_kline
+                symbol = ts_code.split(".")[0]
+                df_rows = []
+                for r in rows:
+                    df_rows.append({
+                        "dt": r["trade_date"],
+                        "symbol": symbol,
+                        "open": float(r["open"] or 0),
+                        "close": float(r["close"] or 0),
+                        "high": float(r["high"] or 0),
+                        "low": float(r["low"] or 0),
+                        "vol": float(r["vol"] or 0) * 100,  # 手 → 股
+                        "amount": float(r.get("amount", 0) or 0) * 1000,  # 千 → 元
+                    })
+                df = pd.DataFrame(df_rows)
+                df["dt"] = pd.to_datetime(df["dt"])
+                df = df.tail(days).reset_index(drop=True)
+                bars = format_standard_kline(df, freq="日线")
+                return bars, df
+        except Exception as e:
+            print(f"[fetch] DB 失败, fallback 缓存/网络: {e}", file=sys.stderr)
+
+    # === 1. 本地缓存 ===
     if use_cache:
         return fetch_klines_with_cache(ts_code, days=days, use_cache=True)
+
+    # === 2. 走网络 ===
     return _fetch_klines_uncached(ts_code, days=days)
 
 
